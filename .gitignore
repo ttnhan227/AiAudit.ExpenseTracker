@@ -1,0 +1,93 @@
+# =========================
+# OS / Editor
+# =========================
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# JetBrains Rider / ReSharper
+.idea/
+riderModule.iml
+_ReSharper*/
+*.DotSettings.user
+/_ReSharper.Caches/
+
+# =========================
+# .NET / ASP.NET Core
+# =========================
+**/[Bb]in/
+**/[Oo]bj/
+**/[Ll]og/
+**/[Ll]ogs/
+
+*.dll
+*.exe
+*.pdb
+*.cache
+
+# Test / coverage
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!**/packages/build/
+
+# Publish output
+publish/
+
+# EF Core local db files
+*.mdf
+*.ldf
+
+# User secrets / local settings copies
+secrets.json
+
+# =========================
+# Frontend (client)
+# =========================
+client/node_modules/
+client/dist/
+client/build/
+client/.parcel-cache/
+client/.turbo/
+client/.next/
+client/.nuxt/
+client/.svelte-kit/
+
+# Package manager logs
+client/npm-debug.log*
+client/yarn-debug.log*
+client/yarn-error.log*
+client/pnpm-debug.log*
+
+# Client env files (keep examples)
+client/.env
+client/.env.local
+client/.env.development.local
+client/.env.test.local
+client/.env.production.local
+
+# =========================
+# App-specific generated files
+# =========================
+server/Uploads/
+!server/Uploads/.gitkeep

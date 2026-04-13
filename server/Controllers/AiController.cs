@@ -1,0 +1,81 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Server.Common;
+using Server.Dtos.Ai;
+using Server.Services;
+
+namespace Server.Controllers;
+
+[ApiController]
+[Authorize]
+[Route("api/ai")]
+public class AiController : ControllerBase
+{
+    private readonly IAiService _aiService;
+    private readonly ILogger<AiController> _logger;
+
+    public AiController(IAiService aiService, ILogger<AiController> logger)
+    {
+        _aiService = aiService;
+        _logger = logger;
+    }
+
+    [Authorize(Roles = "Admin,User")]
+    [Consumes("multipart/form-data")]
+    [HttpPost("upload")]
+    public async Task<IActionResult> UploadReceipt([FromForm] AiUploadRequest request)
+    {
+        var tenantId = User.GetTenantId();
+        _logger.LogInformation(
+            "Receipt upload request received. TenantId={TenantId}, FileName={FileName}, ContentType={ContentType}, Length={Length}",
+            tenantId,
+            request.File?.FileName,
+            request.File?.ContentType,
+            request.File?.Length ?? 0);
+
+        var result = await _aiService.UploadReceiptAsync(request.File, tenantId);
+
+        _logger.LogInformation(
+            "Receipt upload request completed. TenantId={TenantId}, Success={Success}, Error={Error}",
+            tenantId,
+            result.Success,
+            result.Error);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [Authorize(Roles = "Admin,User")]
+    [HttpPost("confirm")]
+    public async Task<IActionResult> ConfirmReceipt(AiConfirmRequest request)
+    {
+        var tenantId = User.GetTenantId();
+        var userId = User.GetUserId();
+        var performedBy = User.GetUserEmail();
+        _logger.LogInformation(
+            "Receipt confirmation request received. TenantId={TenantId}, UserId={UserId}, Merchant={Merchant}, Amount={Amount}, FileUrl={FileUrl}",
+            tenantId,
+            userId,
+            request.Merchant,
+            request.Amount,
+            request.FileUrl);
+
+        var result = await _aiService.ConfirmReceiptAsync(tenantId, userId, performedBy, request);
+
+        _logger.LogInformation(
+            "Receipt confirmation completed. TenantId={TenantId}, UserId={UserId}, Success={Success}, Error={Error}",
+            tenantId,
+            userId,
+            result.Success,
+            result.Error);
+
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [HttpGet("usage")]
+    public async Task<IActionResult> GetUsage()
+    {
+        var tenantId = User.GetTenantId();
+        var result = await _aiService.GetUsageAsync(tenantId);
+        return Ok(result);
+    }
+}

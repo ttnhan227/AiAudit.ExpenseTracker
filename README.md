@@ -62,29 +62,19 @@ bun run dev
 ```
 App: `http://localhost:5173`
 
-## API Endpoints
+## API Modules
 
-**Authentication**
-- `POST /auth/register` - Tenant registration
-- `POST /auth/login` - Login (returns JWT + refresh token)
-- `POST /auth/accept-invite` - Accept invite & set password
-- `POST /auth/refresh` - Refresh access token
+The API is organized by module and secured with role-based access:
 
-**Expenses**
-- `GET /api/expenses` - List expenses with filtering
-- `POST /api/expenses` - Create expense
-- `PUT /api/expenses/:id` - Update expense
-- `POST /api/expenses/:id/submit` - Submit for approval
+- **Auth** - Registration, login, refresh tokens, and invite acceptance
+- **Expenses** - Expense CRUD, submission workflow, and approval actions
+- **AI** - Receipt upload and extraction confirmation
+- **Admin Users** - User invites, role updates, activation/deactivation
+- **Manager** - Team oversight and manager-scoped operations
+- **Subscriptions** - Tenant subscription and plan lifecycle management
+- **Settings** - Tenant configuration and application preferences
 
-**Admin User Management**
-- `GET /admin/users` - List tenant users
-- `POST /admin/users` - Invite new user
-- `PUT /admin/users/:id/role` - Change user role
-- `PUT /admin/users/:id/status` - Activate/deactivate user
-
-**AI Receipt Processing**
-- `POST /api/ai/upload` - Upload receipt
-- `PUT /api/ai/confirm` - Confirm extracted data
+For a complete and always up-to-date route list, see Swagger at `/swagger` when the backend is running.
 
 ## Implementation Highlights
 

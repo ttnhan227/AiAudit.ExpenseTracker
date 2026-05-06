@@ -64,7 +64,7 @@ public sealed class SwaggerExamplesOperationFilter : IOperationFilter
         {
             mediaType.Example = new OpenApiObject
             {
-                ["email"] = new OpenApiString("admin"),
+                ["email"] = new OpenApiString("admin@admin.com"),
                 ["password"] = new OpenApiString("123")
             };
         }

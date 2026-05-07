@@ -23,11 +23,22 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("ClientApp", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173",
-                "https://localhost:5173",
-                "http://localhost:4173",
-                "https://localhost:4173")
+        var origins = new List<string>
+        {
+            "http://localhost:5173",
+            "https://localhost:5173",
+            "http://localhost:4173",
+            "https://localhost:4173"
+        };
+
+        var extraOrigins = Environment.GetEnvironmentVariable("CLIENT_ORIGINS");
+        if (!string.IsNullOrWhiteSpace(extraOrigins))
+        {
+            origins.AddRange(
+                extraOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+
+        policy.WithOrigins(origins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
             .AllowAnyHeader()
             .AllowAnyMethod();
     });

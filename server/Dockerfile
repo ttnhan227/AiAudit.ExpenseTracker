@@ -13,7 +13,7 @@ RUN dotnet publish -c Release -o /app/publish
 # ===== RUNTIME STAGE =====
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 
-RUN apt-get update && apt-get install -y libkrb5-3
+RUN apt-get update && apt-get install -y libkrb5-3 libgssapi-krb5-2
 
 WORKDIR /app
 

@@ -10,9 +10,8 @@ public sealed class AdminUserService : IAdminUserService
     private static readonly TimeSpan InviteLifetime = TimeSpan.FromDays(7);
     private static readonly HashSet<string> AllowedRoles = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Admin",
         "Manager",
-        "User",
+        "Member",
     };
 
     private readonly IUserRepository _userRepository;
@@ -38,7 +37,7 @@ public sealed class AdminUserService : IAdminUserService
 
         if (!AllowedRoles.Contains(request.Role))
         {
-            return ApiResult<InviteTenantUserResponse>.Fail("Role must be Admin, Manager, or User.");
+            return ApiResult<InviteTenantUserResponse>.Fail("Role must be Manager or Member.");
         }
 
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
@@ -74,7 +73,7 @@ public sealed class AdminUserService : IAdminUserService
     {
         if (!AllowedRoles.Contains(request.Role))
         {
-            return ApiResult<TenantUserResponse>.Fail("Role must be Admin, Manager, or User.");
+            return ApiResult<TenantUserResponse>.Fail("Role must be Owner, Manager, or Member.");
         }
 
         var user = await _userRepository.GetByIdAndTenantAsync(targetUserId, tenantId);
@@ -89,14 +88,14 @@ public sealed class AdminUserService : IAdminUserService
         }
 
         var newRole = NormalizeRole(request.Role);
-        var isDemotingAdmin = user.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase) && !newRole.Equals("Admin", StringComparison.OrdinalIgnoreCase);
+        var isDemotingOwner = user.Role.Equals("Owner", StringComparison.OrdinalIgnoreCase) && !newRole.Equals("Owner", StringComparison.OrdinalIgnoreCase);
 
-        if (isDemotingAdmin)
+        if (isDemotingOwner)
         {
-            var adminCount = await _userRepository.CountByRoleAsync(tenantId, "Admin");
-            if (adminCount <= 1)
+            var ownerCount = await _userRepository.CountByRoleAsync(tenantId, "Owner");
+            if (ownerCount <= 1)
             {
-                return ApiResult<TenantUserResponse>.Fail("At least one Admin is required per tenant.");
+                return ApiResult<TenantUserResponse>.Fail("At least one Owner is required per tenant.");
             }
         }
 
@@ -119,15 +118,15 @@ public sealed class AdminUserService : IAdminUserService
             return ApiResult<TenantUserResponse>.Fail("You cannot deactivate your own account.");
         }
 
-        var isDeactivatingAdmin = user.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase) && !request.IsActive;
-        if (isDeactivatingAdmin)
+        var isDeactivatingOwner = user.Role.Equals("Owner", StringComparison.OrdinalIgnoreCase) && !request.IsActive;
+        if (isDeactivatingOwner)
         {
-            var activeAdmins = (await _userRepository.GetByTenantIdAsync(tenantId))
-                .Count(candidate => candidate.Role.Equals("Admin", StringComparison.OrdinalIgnoreCase) && candidate.IsActive);
+            var activeOwners = (await _userRepository.GetByTenantIdAsync(tenantId))
+                .Count(candidate => candidate.Role.Equals("Owner", StringComparison.OrdinalIgnoreCase) && candidate.IsActive);
 
-            if (activeAdmins <= 1)
+            if (activeOwners <= 1)
             {
-                return ApiResult<TenantUserResponse>.Fail("At least one active Admin is required per tenant.");
+                return ApiResult<TenantUserResponse>.Fail("At least one active Owner is required per tenant.");
             }
         }
 
@@ -148,8 +147,8 @@ public sealed class AdminUserService : IAdminUserService
 
     private static string NormalizeRole(string role)
     {
-        if (role.Equals("Admin", StringComparison.OrdinalIgnoreCase)) return "Admin";
+        if (role.Equals("Owner", StringComparison.OrdinalIgnoreCase)) return "Owner";
         if (role.Equals("Manager", StringComparison.OrdinalIgnoreCase)) return "Manager";
-        return "User";
+        return "Member";
     }
 }

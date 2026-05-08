@@ -25,7 +25,7 @@ public class SubscriptionsController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Owner")]
     [HttpPost("subscribe")]
     public async Task<IActionResult> Subscribe(SubscribeRequest request)
     {
@@ -34,7 +34,7 @@ public class SubscriptionsController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    [Authorize(Roles = "Admin,User")]
+    [Authorize(Roles = "Owner,Manager")]
     [HttpGet("current")]
     public async Task<IActionResult> GetCurrentSubscription()
     {
@@ -43,7 +43,7 @@ public class SubscriptionsController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [Authorize(Roles = "Admin,User")]
+    [Authorize(Roles = "Owner,Manager")]
     [HttpGet("billing-history")]
     public async Task<IActionResult> GetBillingHistory()
     {
@@ -52,7 +52,7 @@ public class SubscriptionsController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Owner")]
     [HttpPost("cancel")]
     public async Task<IActionResult> CancelSubscription()
     {
@@ -61,7 +61,7 @@ public class SubscriptionsController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Owner")]
     [HttpPost("upgrade")]
     public async Task<IActionResult> UpgradeSubscription(UpgradeSubscriptionRequest request)
     {

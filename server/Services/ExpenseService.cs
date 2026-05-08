@@ -200,7 +200,7 @@ public sealed class ExpenseService : IExpenseService
             return ApiResult.Fail("Expense not found.");
         }
 
-        if (expense.UserId != userId && !role.Equals("Admin", StringComparison.OrdinalIgnoreCase))
+        if (expense.UserId != userId && !HasTenantWideExpenseAccess(role))
         {
             return ApiResult.Fail("Forbidden");
         }
@@ -306,7 +306,7 @@ public sealed class ExpenseService : IExpenseService
 
     private static bool HasTenantWideExpenseAccess(string role)
     {
-        return role.Equals("Admin", StringComparison.OrdinalIgnoreCase)
+        return role.Equals("Owner", StringComparison.OrdinalIgnoreCase)
             || role.Equals("Manager", StringComparison.OrdinalIgnoreCase);
     }
 

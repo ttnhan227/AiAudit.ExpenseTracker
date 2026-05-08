@@ -31,7 +31,7 @@ const SORT_NEWEST = "newest";
 
 const ExpensesList = () => {
   const { user } = useAuth();
-  const canUseSubmitterFeatures = user?.role === "Admin" || user?.role === "User";
+   const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);

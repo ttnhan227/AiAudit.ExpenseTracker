@@ -131,7 +131,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("AdminOrManager", policy => policy.RequireRole("Admin", "Manager"));
+    options.AddPolicy("OwnerOrManager", policy => policy.RequireRole("Owner", "Manager"));
 });
 
 var app = builder.Build();
@@ -186,7 +186,7 @@ app.Use(async (context, next) =>
             if (!isActive)
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new { success = false, error = "Your account is inactive. Contact your Admin." });
+                await context.Response.WriteAsJsonAsync(new { success = false, error = "Your account is inactive. Contact your Owner." });
                 return;
             }
         }

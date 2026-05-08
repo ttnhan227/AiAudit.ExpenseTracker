@@ -7,7 +7,7 @@ using Server.Services;
 namespace Server.Controllers;
 
 [ApiController]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Owner")]
 [Route("api/admin/users")]
 public class AdminUsersController : ControllerBase
 {

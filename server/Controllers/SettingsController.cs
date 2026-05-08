@@ -26,7 +26,7 @@ public class SettingsController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Owner")]
     [HttpPut("policy")]
     public async Task<IActionResult> UpdatePolicy(UpdatePolicyRequest request)
     {

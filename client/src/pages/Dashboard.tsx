@@ -42,9 +42,9 @@ const Dashboard = () => {
   const [subscription, setSubscription] = useState<CurrentSubscription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [auditInsights, setAuditInsights] = useState<AuditInsight | null>(null);
-  const isManager = user?.role === "Manager" || user?.role === "Admin";
-  const canUseSubmitterFeatures = user?.role === "Admin" || user?.role === "User";
-  const canAccessSubscription = user?.role === "Admin" || user?.role === "User";
+   const isManager = user?.role === "Manager" || user?.role === "Owner";
+   const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
+   const canAccessSubscription = user?.role === "Owner" || user?.role === "Member";
 
   useEffect(() => {
     const fetchStats = async () => {

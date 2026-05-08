@@ -9,27 +9,27 @@ export interface ApiResponse<T> {
 export interface TenantUser {
   id: string;
   email: string;
-  role: "Admin" | "Manager" | "User";
+  role: "Owner" | "Manager" | "Member";
   isActive: boolean;
   invitationPending: boolean;
 }
 
 export interface InviteTenantUserRequest {
   email: string;
-  role: "Admin" | "Manager" | "User";
+  role: "Owner" | "Manager" | "Member";
 }
 
 export interface InviteTenantUserResponse {
   userId: string;
   email: string;
-  role: "Admin" | "Manager" | "User";
+  role: "Owner" | "Manager" | "Member";
   expiresAt: string;
   inviteToken: string;
   inviteUrl: string;
 }
 
 export interface UpdateUserRoleRequest {
-  role: "Admin" | "Manager" | "User";
+  role: "Owner" | "Manager" | "Member";
 }
 
 export interface UpdateUserStatusRequest {

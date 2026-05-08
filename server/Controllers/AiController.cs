@@ -20,7 +20,7 @@ public class AiController : ControllerBase
         _logger = logger;
     }
 
-    [Authorize(Roles = "Admin,User")]
+    [Authorize(Roles = "Owner,Manager,Member")]
     [Consumes("multipart/form-data")]
     [HttpPost("upload")]
     public async Task<IActionResult> UploadReceipt([FromForm] AiUploadRequest request)
@@ -44,7 +44,7 @@ public class AiController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    [Authorize(Roles = "Admin,User")]
+    [Authorize(Roles = "Owner,Manager,Member")]
     [HttpPost("confirm")]
     public async Task<IActionResult> ConfirmReceipt(AiConfirmRequest request)
     {

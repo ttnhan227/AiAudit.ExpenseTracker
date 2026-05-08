@@ -12,7 +12,7 @@ import { ArrowLeft, Loader2, AlertTriangle, CheckCircle, AlertCircle } from "luc
 
 const ExpenseDetail = () => {
   const { user } = useAuth();
-  const canUseSubmitterFeatures = user?.role === "Admin" || user?.role === "User";
+   const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
   const { id } = useParams();
   const navigate = useNavigate();
   const [expense, setExpense] = useState<Expense | null>(null);

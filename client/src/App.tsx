@@ -54,14 +54,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/expenses/create"
-              element={
-                <ProtectedRoute requiredRole={["Admin", "User"]}>
-                  <CreateExpense />
-                </ProtectedRoute>
-              }
-            />
+<Route
+               path="/expenses/create"
+               element={
+                 <ProtectedRoute requiredRole={["Owner", "Manager", "Member"]}>
+                   <CreateExpense />
+                 </ProtectedRoute>
+               }
+             />
             <Route
               path="/expenses/:id"
               element={
@@ -70,18 +70,18 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/upload"
-              element={
-                <ProtectedRoute requiredRole={["Admin", "User"]}>
-                  <UploadReceipt />
-                </ProtectedRoute>
-              }
-            />
+<Route
+               path="/upload"
+               element={
+                 <ProtectedRoute requiredRole={["Owner", "Manager", "Member"]}>
+                   <UploadReceipt />
+                 </ProtectedRoute>
+               }
+             />
             <Route
               path="/manager/pending"
               element={
-                <ProtectedRoute requiredRole={["Manager", "Admin"]}>
+                <ProtectedRoute requiredRole={["Manager", "Owner"]}>
                   <ManagerPending />
                 </ProtectedRoute>
               }
@@ -89,7 +89,7 @@ const App = () => (
             <Route
               path="/manager/audit/:id"
               element={
-                <ProtectedRoute requiredRole={["Manager", "Admin"]}>
+                <ProtectedRoute requiredRole={["Manager", "Owner"]}>
                   <AuditTrail />
                 </ProtectedRoute>
               }
@@ -97,7 +97,7 @@ const App = () => (
             <Route
               path="/manager/insights"
               element={
-                <ProtectedRoute requiredRole={["Manager", "Admin"]}>
+                <ProtectedRoute requiredRole={["Manager", "Owner"]}>
                   <ManagerInsights />
                 </ProtectedRoute>
               }
@@ -113,27 +113,27 @@ const App = () => (
             <Route
               path="/settings/policy"
               element={
-                <ProtectedRoute requiredRole={["Admin"]}>
+                <ProtectedRoute requiredRole={["Owner"]}>
                   <Settings />
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/admin/users"
-              element={
-                <ProtectedRoute requiredRole={["Admin"]}>
-                  <UserManagement />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/subscription"
-              element={
-                <ProtectedRoute requiredRole={["Admin", "User"]}>
-                  <Subscription />
-                </ProtectedRoute>
-              }
-            />
+<Route
+               path="/admin/users"
+               element={
+                 <ProtectedRoute requiredRole={["Owner"]}>
+                   <UserManagement />
+                 </ProtectedRoute>
+               }
+             />
+<Route
+               path="/subscription"
+               element={
+                 <ProtectedRoute requiredRole={["Owner", "Member"]}>
+                   <Subscription />
+                 </ProtectedRoute>
+               }
+             />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

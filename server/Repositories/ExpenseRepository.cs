@@ -79,7 +79,7 @@ public sealed class ExpenseRepository : IExpenseRepository
 
     private static bool HasTenantWideExpenseAccess(string role)
     {
-        return role.Equals("Admin", StringComparison.OrdinalIgnoreCase)
+        return role.Equals("Owner", StringComparison.OrdinalIgnoreCase)
             || role.Equals("Manager", StringComparison.OrdinalIgnoreCase);
     }
 }

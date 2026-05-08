@@ -55,7 +55,7 @@ public sealed class AuthService : IAuthService
             Id = Guid.NewGuid(),
             Email = request.Email,
             PasswordHash = PasswordHasher.Hash(request.Password),
-            Role = "Admin",
+            Role = "Owner",
             IsActive = true,
             InviteToken = null,
             InviteTokenExpiresAt = null,
@@ -80,7 +80,7 @@ public sealed class AuthService : IAuthService
 
         if (!user.IsActive)
         {
-            return ApiResult<AuthResponse>.Fail("Your account is inactive. Contact your Admin.");
+            return ApiResult<AuthResponse>.Fail("Your account is inactive. Contact your Owner.");
         }
 
         return await BuildAuthResponseAsync(user);

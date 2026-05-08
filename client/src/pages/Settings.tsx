@@ -17,7 +17,7 @@ const Settings = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const isAdmin = user?.role === "Admin";
+   const isAdmin = user?.role === "Owner";
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -259,7 +259,7 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Policy Configuration – Admin only */}
+         {/* Policy Configuration – Owner only */}
         {isAdmin && (
           <Card id="policy-configuration" className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
             <CardHeader>

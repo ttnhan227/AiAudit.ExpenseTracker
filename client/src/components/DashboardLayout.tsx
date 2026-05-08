@@ -33,9 +33,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const location = useLocation();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const isManager = user?.role === "Manager" || user?.role === "Admin";
-  const isAdmin = user?.role === "Admin";
-  const canUseSubmitterFeatures = user?.role === "Admin" || user?.role === "User";
+   const isManager = user?.role === "Manager" || user?.role === "Owner";
+   const isOwner = user?.role === "Owner";
+   const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
   const isManagerOnly = user?.role === "Manager";
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "AI";
 
@@ -54,12 +54,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           { href: "/manager/insights", icon: Activity, label: "Audit Insights" },
         ]
       : []),
-    ...(isAdmin
-      ? [
-          { href: "/settings/policy", icon: ShieldCheck, label: "Policy Settings" },
-          { href: "/admin/users", icon: Users, label: "User Management" },
-        ]
-      : []),
+     ...(isOwner
+       ? [
+           { href: "/settings/policy", icon: ShieldCheck, label: "Policy Settings" },
+           { href: "/admin/users", icon: Users, label: "User Management" },
+         ]
+       : []),
     ...(!isManagerOnly
       ? [
           { href: "/subscription", icon: CreditCard, label: "Subscription" },
@@ -129,7 +129,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
         <div className="mx-3 mt-auto rounded-3xl border border-border/60 bg-secondary/40 p-4">
           <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Workspace</p>
           <p className="mt-2 text-sm font-medium text-foreground">{user?.companyName ?? "AuditAI tenant"}</p>
-          <p className="mt-1 text-sm text-muted-foreground">Role: {user?.role ?? "User"}</p>
+           <p className="mt-1 text-sm text-muted-foreground">Role: {user?.role ?? "Member"}</p>
         </div>
       </aside>
 

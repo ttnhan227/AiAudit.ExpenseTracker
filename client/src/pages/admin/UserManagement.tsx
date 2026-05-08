@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/table";
 import { AlertCircle, Copy, Loader2, Users } from "lucide-react";
 
-const ROLES = ["Admin", "Manager", "User"] as const;
+const ROLES = ["Owner", "Manager", "Member"] as const;
 
 type Role = (typeof ROLES)[number];
 
@@ -39,7 +39,7 @@ const UserManagement = () => {
   const [success, setSuccess] = useState("");
   const [invite, setInvite] = useState({
     email: "",
-    role: "User" as Role,
+    role: "Member" as Role,
   });
   const [latestInviteUrl, setLatestInviteUrl] = useState("");
   const [roleDrafts, setRoleDrafts] = useState<Record<string, Role>>({});
@@ -91,7 +91,7 @@ const UserManagement = () => {
 
       setLatestInviteUrl(result.data.inviteUrl);
       setSuccess(`Invitation created for ${result.data.email}.`);
-      setInvite({ email: "", role: "User" });
+       setInvite({ email: "", role: "Member" });
     } else {
       setError(result.error || "Failed to invite user");
     }
@@ -160,7 +160,7 @@ const UserManagement = () => {
               <Users className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Admin</p>
+               <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Owner</p>
               <h1 className="mt-2 text-3xl font-bold text-foreground">User Management</h1>
             </div>
           </div>

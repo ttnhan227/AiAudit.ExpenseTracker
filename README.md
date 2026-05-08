@@ -29,10 +29,10 @@ Full-stack SaaS platform for enterprise expense management with AI-powered recei
 
 - **AI Receipt Processing** — Mistral AI OCR and structured expense extraction
 - **Multi-Tenant Architecture** — Tenant isolation enforced through JWT claims and repository-layer filtering
-- **Role-Based Access Control** — Admin / Manager / User authorization across frontend routes, API endpoints, and services
+- **Role-Based Access Control** — Owner / Manager / Member authorization across frontend routes, API endpoints, and services
 - **Secure Authentication** — JWT access tokens with refresh token rotation and invite-based onboarding
 - **Expense Workflow** — Draft → Submit → Approve/Reject lifecycle with audit logging
-- **Admin Dashboard** — User management, role assignment, and subscription management
+- **Owner Dashboard** — User management, role assignment, and subscription management
 - **Analytics & Reporting** — KPI insights, audit metrics, and CSV export functionality
 
 ## Architecture
@@ -78,10 +78,10 @@ For a complete route list, see Swagger at `/swagger`.
 
 ### Invite-Based Onboarding
 
-- Admin generates 7-day invite token (Guid-based, 128-bit entropy)
+- Owner generates 7-day invite token (Guid-based, 128-bit entropy)
 - User sets own password via public endpoint
 - Token expires automatically after acceptance
-- Minimum active admin enforcement
+- Minimum active owner enforcement
 
 ### Request-Time Access Control
 
@@ -114,13 +114,14 @@ GitHub Actions workflows automate .NET/build/test, React lint/test/build, Docker
 
 ## Permissions
 
-| Feature | Admin | Manager | User |
+| Feature | Owner | Manager | Member |
 |---------|:-----:|:-------:|:----:|
-| Create/Submit Expenses | ✓ | | ✓ |
+| Create/Submit Expenses | ✓ | ✓ | ✓ |
 | Review & Approve | ✓ | ✓ | |
-| Upload Receipts | ✓ | | ✓ |
+| Upload Receipts | ✓ | ✓ | ✓ |
 | Manage Users & Roles | ✓ | | |
 | View Analytics | ✓ | ✓ | |
+| View Subscriptions | ✓ | ✓ | |
 | Manage Subscriptions | ✓ | | |
 
 ## Local Development

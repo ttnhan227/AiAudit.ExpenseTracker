@@ -45,7 +45,7 @@ public class ExpensesController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Admin,User")]
+    [Authorize(Roles = "Owner,Manager,Member")]
     [HttpPost]
     public async Task<IActionResult> CreateExpense(ExpenseCreateRequest request)
     {
@@ -61,7 +61,7 @@ public class ExpensesController : ControllerBase
         return CreatedAtAction(nameof(GetExpense), new { id = result.Data!.Id }, result);
     }
 
-    [Authorize(Roles = "Admin,User")]
+    [Authorize(Roles = "Owner,Manager,Member")]
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateExpense(Guid id, ExpenseUpdateRequest request)
     {
@@ -77,7 +77,7 @@ public class ExpensesController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Admin,User")]
+    [Authorize(Roles = "Owner,Manager,Member")]
     [HttpPost("{id}/submit")]
     public async Task<IActionResult> SubmitExpense(Guid id)
     {
@@ -95,7 +95,7 @@ public class ExpensesController : ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Admin,User")]
+    [Authorize(Roles = "Owner,Manager,Member")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteExpense(Guid id)
     {

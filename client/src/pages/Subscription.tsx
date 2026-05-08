@@ -12,7 +12,7 @@ import { AlertCircle, Loader2, CheckCircle, CreditCard, Calendar, TrendingUp, Do
 const Subscription = () => {
   const navigate = useNavigate();
   const { user, refreshProfile } = useAuth();
-  const canManageSubscription = user?.role === "Admin";
+   const canManageSubscription = user?.role === "Owner";
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [currentSubscription, setCurrentSubscription] = useState<CurrentSubscription | null>(null);
   const [billingHistory, setBillingHistory] = useState<BillingHistoryItem[]>([]);
@@ -57,7 +57,7 @@ const Subscription = () => {
 
   const handleSubscribe = async (planId: string) => {
     if (!canManageSubscription) {
-      setError("Only Admin can manage subscription changes.");
+       setError("Only Owner can manage subscription changes.");
       return;
     }
     setError("");
@@ -85,7 +85,7 @@ const Subscription = () => {
   const handleUpgrade = async (planId: string) => {
     if (!currentSubscription) return;
     if (!canManageSubscription) {
-      setError("Only Admin can manage subscription changes.");
+       setError("Only Owner can manage subscription changes.");
       return;
     }
 
@@ -110,7 +110,7 @@ const Subscription = () => {
 
   const handleCancel = async () => {
     if (!canManageSubscription) {
-      setError("Only Admin can manage subscription changes.");
+       setError("Only Owner can manage subscription changes.");
       return;
     }
     if (!confirm("Are you sure you want to cancel your subscription? You will lose access to premium features.")) {
@@ -170,7 +170,7 @@ const Subscription = () => {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Your plan is managed by your Admin. You can view subscription details here, but only Admin can make changes.
+               Your plan is managed by your Owner. You can view subscription details here, but only Owner can make changes.
             </AlertDescription>
           </Alert>
         )}

@@ -191,8 +191,8 @@ public static class DatabaseSeeder
                 "Airfare above $1,000 requires finance approval within 48 hours, and client entertainment needs agenda notes.",
                 [
                     new UserSeed(
-                        "admin@admin.com",
-                        "Admin",
+                        "marcus.river@northwindanalytics.com",
+                        "Owner",
                         [
                             Expense("Delta Air Lines", "Travel", 428.60m, "Approved", now.AddDays(-20), "Round-trip flight to Chicago for the quarterly client review.", "/uploads/northwind-delta-flight.jpg", reviewNote: "Approved by finance for planned client travel.", reviewedBy: "olivia.chen@northwindanalytics.com"),
                             Expense("JW Marriott Austin", "Lodging", 612.40m, "Pending", now.AddDays(-5), "Two nights for the leadership offsite with customer success leads.", "/uploads/northwind-marriott-austin.jpg", submittedNote: "Awaiting final approval for offsite lodging."),
@@ -203,12 +203,12 @@ public static class DatabaseSeeder
                         "Manager",
                         [
                             Expense("Salesforce", "Software", 329.00m, "Approved", now.AddDays(-15), "Monthly CRM add-on licenses for enterprise account planning.", "/uploads/northwind-salesforce.jpg", reviewNote: "Approved as part of recurring software spend."),
-                            Expense("Blue Bottle Coffee", "Meals", 142.85m, "Rejected", now.AddDays(-8), "Coffee meeting with prospective implementation partner.", "/uploads/northwind-bluebottle.jpg", true, "Expense triggered policy review.", "Rejected because attendee list was missing.", reviewedBy: "admin@admin.com"),
+                            Expense("Blue Bottle Coffee", "Meals", 142.85m, "Rejected", now.AddDays(-8), "Coffee meeting with prospective implementation partner.", "/uploads/northwind-bluebottle.jpg", true, "Expense triggered policy review.", "Rejected because attendee list was missing.", reviewedBy: "owner@northwindanalytics.com"),
                             Expense("Canva", "Software", 96.00m, "Pending", now.AddDays(-3), "Presentation design subscription for investor update materials.", "/uploads/northwind-canva.jpg")
                         ]),
                     new UserSeed(
                         "marco.silva@northwindanalytics.com",
-                        "User",
+                        "Member",
                         [
                             Expense("United Airlines", "Travel", 1184.20m, "Pending", now.AddDays(-6), "Flight to New York for enterprise renewal workshop.", "/uploads/northwind-united-nyc.jpg", true, "Amount exceeds tenant review threshold.", "Flagged automatically because airfare exceeded standard review band."),
                             Expense("Hilton Midtown", "Lodging", 884.55m, "Approved", now.AddDays(-11), "Hotel stay during the New York renewal workshop.", "/uploads/northwind-hilton-midtown.jpg", reviewNote: "Approved with attached itinerary.", reviewedBy: "olivia.chen@northwindanalytics.com"),
@@ -216,7 +216,7 @@ public static class DatabaseSeeder
                         ]),
                     new UserSeed(
                         "nina.kapoor@northwindanalytics.com",
-                        "User",
+                        "Member",
                         [
                             Expense("Adobe", "Software", 89.99m, "Approved", now.AddDays(-18), "Monthly Adobe license for customer-facing deck production.", "/uploads/northwind-adobe.jpg", reviewNote: "Approved recurring subscription."),
                             Expense("Lyft", "Ground Transport", 38.70m, "Approved", now.AddDays(-9), "Client-site commute after transit delay.", "/uploads/northwind-lyft-client.jpg", reviewNote: "Approved with supporting schedule note."),
@@ -232,7 +232,7 @@ public static class DatabaseSeeder
                 [
                     new UserSeed(
                         "daniel.kim@blueharborlogistics.com",
-                        "Admin",
+                        "Owner",
                         [
                             Expense("Harbor Grill", "Meals", 186.25m, "Approved", now.AddDays(-12), "Team dinner with regional warehouse partners after Q1 planning.", "/uploads/blueharbor-harbor-grill.jpg", reviewNote: "Approved with attendee list and planning agenda."),
                             Expense("Marriott Long Beach", "Travel", 544.10m, "Pending", now.AddDays(-4), "One-night stay before carrier contract review.", "/uploads/blueharbor-marriott.jpg"),
@@ -248,7 +248,7 @@ public static class DatabaseSeeder
                         ]),
                     new UserSeed(
                         "lucas.meyer@blueharborlogistics.com",
-                        "User",
+                        "Member",
                         [
                             Expense("FedEx Office", "Shipping", 58.20m, "Approved", now.AddDays(-9), "Printed and shipped customs packets for port onboarding.", "/uploads/blueharbor-fedex.jpg", reviewNote: "Approved as project shipping cost."),
                             Expense("Shell", "Fuel", 147.19m, "Pending", now.AddDays(-3), "Fuel for a three-day route coverage visit across Orange County.", "/uploads/blueharbor-shell.jpg"),
@@ -256,7 +256,7 @@ public static class DatabaseSeeder
                         ]),
                     new UserSeed(
                         "sofia.ortega@blueharborlogistics.com",
-                        "User",
+                        "Member",
                         [
                             Expense("Zoom", "Software", 159.00m, "Approved", now.AddDays(-13), "Quarterly webinar add-on for recruiting and carrier briefings.", "/uploads/blueharbor-zoom.jpg", reviewNote: "Approved recurring collaboration software."),
                             Expense("Chipotle", "Meals", 67.45m, "Pending", now.AddDays(-2), "Lunch during same-day candidate interview loop.", "/uploads/blueharbor-chipotle.jpg"),
@@ -272,7 +272,7 @@ public static class DatabaseSeeder
                 [
                     new UserSeed(
                         "maya.patel@cedarstonedesign.com",
-                        "Admin",
+                        "Owner",
                         [
                             Expense("Adobe", "Software", 89.99m, "Approved", now.AddDays(-21), "Monthly Adobe Creative Cloud subscription for brand design work.", "/uploads/cedarstone-adobe.jpg", reviewNote: "Approved recurring design software subscription."),
                             Expense("Figma", "Software", 180.00m, "Approved", now.AddDays(-14), "Quarterly Figma pro seats for client collaboration.", "/uploads/cedarstone-figma.jpg", reviewNote: "Approved for active client collaboration."),
@@ -288,7 +288,7 @@ public static class DatabaseSeeder
                         ]),
                     new UserSeed(
                         "zoe.martin@cedarstonedesign.com",
-                        "User",
+                        "Member",
                         [
                             Expense("MOO", "Printing", 248.30m, "Approved", now.AddDays(-10), "Premium print run for fashion client pitch leave-behinds.", "/uploads/cedarstone-moo.jpg", reviewNote: "Approved against client acquisition budget.", reviewedBy: "aaron.lee@cedarstonedesign.com"),
                             Expense("Apple", "Hardware", 1299.00m, "Pending", now.AddDays(-3), "iPad for on-site creative reviews and markup sessions.", "/uploads/cedarstone-ipad.jpg", true, "Expense triggered policy review.", "Pending hardware approval with asset tagging required."),
@@ -296,7 +296,7 @@ public static class DatabaseSeeder
                         ]),
                     new UserSeed(
                         "julian.cross@cedarstonedesign.com",
-                        "User",
+                        "Member",
                         [
                             Expense("B&H Photo", "Equipment", 532.45m, "Approved", now.AddDays(-15), "Lighting accessories and backup batteries for studio shoots.", "/uploads/cedarstone-bhphoto.jpg", reviewNote: "Approved for scheduled production shoots.", reviewedBy: "aaron.lee@cedarstonedesign.com"),
                             Expense("Uber", "Transport", 42.18m, "Approved", now.AddDays(-6), "Late-night ride home after client photo shoot wrap.", "/uploads/cedarstone-uber.jpg", reviewNote: "Approved with late-session note.", reviewedBy: "aaron.lee@cedarstonedesign.com"),
@@ -312,7 +312,7 @@ public static class DatabaseSeeder
                 [
                     new UserSeed(
                         "rachel.stone@summitpeakconsulting.com",
-                        "Admin",
+                        "Owner",
                         [
                             Expense("Marriott Downtown", "Travel", 642.15m, "Approved", now.AddDays(-18), "Two-night hotel stay for on-site audit engagement in Seattle.", "/uploads/summitpeak-marriott.jpg", reviewNote: "Approved for billable client travel."),
                             Expense("Alaska Airlines", "Travel", 534.90m, "Approved", now.AddDays(-17), "Round-trip airfare for Seattle audit kickoff.", "/uploads/summitpeak-alaska.jpg", reviewNote: "Approved against client engagement budget."),
@@ -328,7 +328,7 @@ public static class DatabaseSeeder
                         ]),
                     new UserSeed(
                         "ethan.rivera@summitpeakconsulting.com",
-                        "User",
+                        "Member",
                         [
                             Expense("United Airlines", "Travel", 1388.45m, "Pending", now.AddDays(-6), "Last-minute client site travel for controls escalation workshop.", "/uploads/summitpeak-united.jpg", true, "Amount exceeds tenant review threshold.", "Pending approval because airfare exceeded the standard review threshold."),
                             Expense("Starbucks", "Meals", 24.60m, "Approved", now.AddDays(-9), "Coffee during same-day client workshop travel.", "/uploads/summitpeak-starbucks.jpg", reviewNote: "Approved as routine travel meal.", reviewedBy: "victor.hale@summitpeakconsulting.com"),
@@ -336,7 +336,7 @@ public static class DatabaseSeeder
                         ]),
                     new UserSeed(
                         "sophia.bennett@summitpeakconsulting.com",
-                        "User",
+                        "Member",
                         [
                             Expense("Zoom", "Software", 79.00m, "Approved", now.AddDays(-13), "Webinar add-on for control owner training sessions.", "/uploads/summitpeak-zoom.jpg", reviewNote: "Approved recurring training software.", reviewedBy: "victor.hale@summitpeakconsulting.com"),
                             Expense("Uber", "Ground Transport", 88.34m, "Approved", now.AddDays(-7), "Airport transfer and client-office round trip.", "/uploads/summitpeak-uber.jpg", reviewNote: "Approved with itinerary attached.", reviewedBy: "victor.hale@summitpeakconsulting.com"),

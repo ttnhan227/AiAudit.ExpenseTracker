@@ -12,4 +12,5 @@ public interface IExpenseService
     Task<ApiResult<ExpenseResponse>> SubmitExpenseAsync(Guid id, Guid tenantId, Guid userId, string role, string performedBy);
     Task<ApiResult> DeleteExpenseAsync(Guid id, Guid tenantId, Guid userId, string role, string performedBy);
     Task<ApiResult<ExpenseStatsResponse>> GetExpenseStatsAsync(Guid tenantId, string role, Guid userId);
+    Task<int> ProcessAutoApprovalsAsync(Guid tenantId);
 }

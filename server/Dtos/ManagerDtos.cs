@@ -15,3 +15,18 @@ public sealed record AuditInsightsResponse(int ApprovedCount, int RejectedCount,
 public sealed record ApproveExpenseResponse(Guid ExpenseId, string Status, DateTime Timestamp);
 public sealed record RejectExpenseRequest(string Reason);
 public sealed record AuditEntryResponse(Guid Id, string Action, string PerformedBy, DateTime Timestamp, string? Notes, string? OldValue, string? NewValue);
+public sealed record BudgetPredictionResponse(decimal PredictedMonthTotal, decimal ConfidencePercentage, string HealthStatus, decimal VariancePercentage, int DaysRemaining);
+public sealed record MonthlySpendPoint(string Month, decimal Amount);
+public sealed record ForecastResponse(MonthlySpendPoint[] HistoricalData, MonthlySpendPoint[] ProjectedData, decimal CurrentMonthProjection, decimal NextMonthProjection, decimal TrendPercentage);
+
+// Predictive breach warning per-category breakdown
+public sealed record CategoryPrediction(
+    string Category,
+    decimal Budget,
+    decimal SpentToDate,
+    decimal ProjectedMonthly,
+    int PredictedUsagePercentage,
+    bool WillExceedBudget,
+    decimal ConfidenceScore,
+    int DaysRemaining
+);

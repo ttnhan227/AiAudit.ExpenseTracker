@@ -64,8 +64,8 @@ public sealed class AdminUserService : IAdminUserService
         await _userRepository.AddAsync(user);
         await _userRepository.SaveChangesAsync();
 
-        var inviteUrl = $"/accept-invite?token={inviteToken}";
-        var response = new InviteTenantUserResponse(user.Id, user.Email, user.Role, expiresAt, inviteToken, inviteUrl);
+var inviteUrl = $"/accept-invite?token={inviteToken}";
+            var response = new InviteTenantUserResponse(user.Id, user.Email, user.Role, expiresAt);
         return ApiResult<InviteTenantUserResponse>.Ok(response);
     }
 

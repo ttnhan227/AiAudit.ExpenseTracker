@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { authService } from "@/services/authService";
-import { settingsService, CompanySettings } from "@/services/settingsService";
+import { settingsService, CompanySettings, AutoApprovalRules, NotificationSettings } from "@/services/settingsService";
 import { managerService, AuditInsight } from "@/services/managerService";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2, CheckCircle, LogOut, ShieldCheck } from "lucide-react";
+import { AlertCircle, Loader2, CheckCircle, LogOut, ShieldCheck, Zap, Bell, ExternalLink } from "lucide-react";
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -27,6 +28,15 @@ const Settings = () => {
   const [policyError, setPolicyError] = useState("");
   const [policySuccess, setPolicySuccess] = useState("");
   const [policyInsights, setPolicyInsights] = useState<AuditInsight | null>(null);
+   const [autoApprovalRules, setAutoApprovalRules] = useState<AutoApprovalRules | null>(null);
+   const [isSavingAutoApproval, setIsSavingAutoApproval] = useState(false);
+   const [autoApprovalError, setAutoApprovalError] = useState("");
+   const [autoApprovalSuccess, setAutoApprovalSuccess] = useState("");
+   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
+   const [isSavingNotification, setIsSavingNotification] = useState(false);
+   const [notificationError, setNotificationError] = useState("");
+   const [notificationSuccess, setNotificationSuccess] = useState("");
+
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -52,6 +62,28 @@ const Settings = () => {
     };
     fetchPolicyInsights();
   }, [isAdmin]);
+
+   useEffect(() => {
+     if (!isAdmin) return;
+     const fetchAutoApprovalRules = async () => {
+       const result = await settingsService.getAutoApprovalRules();
+       if (result.success && result.data) {
+         setAutoApprovalRules(result.data);
+       }
+     };
+     fetchAutoApprovalRules();
+   }, [isAdmin]);
+
+   useEffect(() => {
+     if (!isAdmin) return;
+     const fetchNotificationSettings = async () => {
+       const result = await settingsService.getNotificationSettings();
+       if (result.success && result.data) {
+         setNotificationSettings(result.data);
+       }
+     };
+     fetchNotificationSettings();
+   }, [isAdmin]);
 
   useEffect(() => {
     if (location.pathname !== "/settings/policy") return;
@@ -83,6 +115,56 @@ const Settings = () => {
     }
     setIsSavingPolicy(false);
   };
+
+   const handleSaveAutoApproval = async (e: React.FormEvent) => {
+     e.preventDefault();
+     setAutoApprovalError("");
+     setAutoApprovalSuccess("");
+     if (!autoApprovalRules) return;
+
+     setIsSavingAutoApproval(true);
+     const result = await settingsService.updateAutoApprovalRules({
+       enabled: autoApprovalRules.enabled,
+       maxAmount: autoApprovalRules.maxAmount,
+       maxRiskScore: autoApprovalRules.maxRiskScore,
+       excludeWeekends: autoApprovalRules.excludeWeekends,
+       excludedCategories: autoApprovalRules.excludedCategories,
+       minAgeHours: autoApprovalRules.minAgeHours,
+     });
+
+     if (result.success) {
+       setAutoApprovalSuccess("Auto-approval settings saved.");
+     } else {
+       setAutoApprovalError(result.error || "Failed to save auto-approval settings.");
+     }
+     setIsSavingAutoApproval(false);
+   };
+
+   const handleSaveNotification = async (e: React.FormEvent) => {
+     e.preventDefault();
+     setNotificationError("");
+     setNotificationSuccess("");
+     if (!notificationSettings) return;
+
+     setIsSavingNotification(true);
+     const result = await settingsService.updateNotificationSettings({
+       emailNotificationsEnabled: notificationSettings.emailNotificationsEnabled,
+       slackNotificationsEnabled: notificationSettings.slackNotificationsEnabled,
+       slackWebhookUrl: notificationSettings.slackWebhookUrl,
+       slackChannel: notificationSettings.slackChannel,
+       managerEmail: notificationSettings.managerEmail,
+       noReplyEmail: notificationSettings.noReplyEmail,
+     });
+
+     if (result.success) {
+       setNotificationSuccess("Notification settings saved.");
+     } else {
+       setNotificationError(result.error || "Failed to save notification settings.");
+     }
+     setIsSavingNotification(false);
+   };
+
+
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
@@ -372,7 +454,271 @@ const Settings = () => {
           </Card>
         )}
 
-        {/* Danger Zone */}
+        {/* Auto-Approval Rules – Owner only */}
+        {isAdmin && autoApprovalRules && (
+          <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-primary" />
+                <CardTitle>Auto-Approval Rules</CardTitle>
+              </div>
+              <CardDescription>
+                Automatically approve low-risk expenses without manual review.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSaveAutoApproval} className="space-y-4">
+                {autoApprovalError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{autoApprovalError}</AlertDescription>
+                  </Alert>
+                )}
+                {autoApprovalSuccess && (
+                  <Alert className="border-green-200 bg-green-50">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">{autoApprovalSuccess}</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Enable Auto-Approval</p>
+                    <p className="text-sm text-muted-foreground">Turn on automatic approval for qualifying expenses.</p>
+                  </div>
+                  <Switch
+                    checked={autoApprovalRules.enabled}
+                    onCheckedChange={(checked) => setAutoApprovalRules({ ...autoApprovalRules, enabled: checked })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="maxAmount">Max Amount ($)</Label>
+                  <Input
+                    id="maxAmount"
+                    type="number"
+                    value={autoApprovalRules.maxAmount}
+                    onChange={(e) => setAutoApprovalRules({ ...autoApprovalRules, maxAmount: Number(e.target.value) })}
+                    disabled={isSavingAutoApproval}
+                  />
+                  <p className="text-xs text-muted-foreground">Expenses at or below this amount are eligible.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="maxRiskScore">Max Risk Score</Label>
+                  <Input
+                    id="maxRiskScore"
+                    type="number"
+                    value={autoApprovalRules.maxRiskScore}
+                    onChange={(e) => setAutoApprovalRules({ ...autoApprovalRules, maxRiskScore: Number(e.target.value) })}
+                    disabled={isSavingAutoApproval}
+                  />
+                  <p className="text-xs text-muted-foreground">Expenses with risk score at or below this are approved.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="minAgeHours">Minimum Age (hours)</Label>
+                  <Input
+                    id="minAgeHours"
+                    type="number"
+                    value={autoApprovalRules.minAgeHours}
+                    onChange={(e) => setAutoApprovalRules({ ...autoApprovalRules, minAgeHours: Number(e.target.value) })}
+                    disabled={isSavingAutoApproval}
+                  />
+                  <p className="text-xs text-muted-foreground">Expense must be at least this old before auto-approval.</p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Exclude Weekends</p>
+                    <p className="text-sm text-muted-foreground">Don't auto-approve expenses dated on weekends.</p>
+                  </div>
+                  <Switch
+                    checked={autoApprovalRules.excludeWeekends}
+                    onCheckedChange={(checked) => setAutoApprovalRules({ ...autoApprovalRules, excludeWeekends: checked })}
+                  />
+                </div>
+
+                <Button type="submit" disabled={isSavingAutoApproval} className="gap-2">
+                  {isSavingAutoApproval && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Save Settings
+                </Button>
+              </form>
+           </CardContent>
+         </Card>
+       )}
+
+       {/* Notification Settings – Owner only */}
+       {isAdmin && notificationSettings && (
+         <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
+           <CardHeader>
+             <div className="flex items-center gap-2">
+               <Bell className="h-5 w-5 text-primary" />
+               <CardTitle>Notification Settings</CardTitle>
+             </div>
+             <CardDescription>
+               Configure email and Slack notifications for your organization.
+             </CardDescription>
+           </CardHeader>
+           <CardContent>
+             <form onSubmit={handleSaveNotification} className="space-y-6">
+               {notificationError && (
+                 <Alert variant="destructive">
+                   <AlertCircle className="h-4 w-4" />
+                   <AlertDescription>{notificationError}</AlertDescription>
+                 </Alert>
+               )}
+               {notificationSuccess && (
+                 <Alert className="border-green-200 bg-green-50">
+                   <CheckCircle className="h-4 w-4 text-green-600" />
+                   <AlertDescription className="text-green-800">{notificationSuccess}</AlertDescription>
+                 </Alert>
+               )}
+
+               {/* Email Notifications */}
+               <div className="space-y-4">
+                 <h3 className="text-lg font-semibold flex items-center gap-2">
+                   <span className="h-px flex-1 bg-border"></span>
+                   Email Notifications
+                   <span className="h-px flex-1 bg-border"></span>
+                 </h3>
+
+                 <div className="flex items-center justify-between">
+                   <div>
+                     <p className="font-medium">Enable Email Notifications</p>
+                     <p className="text-sm text-muted-foreground">Send automated emails for expense events.</p>
+                   </div>
+                   <Switch
+                     checked={notificationSettings.emailNotificationsEnabled}
+                     onCheckedChange={(checked) => setNotificationSettings({ ...notificationSettings, emailNotificationsEnabled: checked })}
+                   />
+                 </div>
+
+                 <div className="space-y-2">
+                   <Label htmlFor="managerEmail">Manager Notification Email</Label>
+                   <Input
+                     id="managerEmail"
+                     type="email"
+                     placeholder="manager@company.com"
+                     value={notificationSettings.managerEmail || ""}
+                     onChange={(e) => setNotificationSettings({ ...notificationSettings, managerEmail: e.target.value })}
+                     disabled={isSavingNotification}
+                   />
+                   <p className="text-xs text-muted-foreground">
+                     Weekly expense digest and high-priority alerts sent to this address.
+                   </p>
+                 </div>
+
+                 <div className="space-y-2">
+                   <Label htmlFor="noReplyEmail">No-Reply Sender Email</Label>
+                   <Input
+                     id="noReplyEmail"
+                     type="email"
+                     placeholder="noreply@company.com"
+                     value={notificationSettings.noReplyEmail || ""}
+                     onChange={(e) => setNotificationSettings({ ...notificationSettings, noReplyEmail: e.target.value })}
+                     disabled={isSavingNotification}
+                   />
+                   <p className="text-xs text-muted-foreground">
+                     From address for automated notifications (default: noreply@aiaudit.app).
+                   </p>
+                 </div>
+               </div>
+
+               {/* Slack Notifications */}
+               <div className="space-y-4">
+                 <h3 className="text-lg font-semibold flex items-center gap-2">
+                   <span className="h-px flex-1 bg-border"></span>
+                   Slack Integration
+                   <span className="h-px flex-1 bg-border"></span>
+                 </h3>
+
+                 <div className="flex items-center justify-between">
+                   <div>
+                     <p className="font-medium">Enable Slack Notifications</p>
+                     <p className="text-sm text-muted-foreground">Post anomaly alerts and digests to Slack.</p>
+                   </div>
+                   <Switch
+                     checked={notificationSettings.slackNotificationsEnabled}
+                     onCheckedChange={(checked) => setNotificationSettings({ ...notificationSettings, slackNotificationsEnabled: checked })}
+                   />
+                 </div>
+
+                 <div className="space-y-2">
+                   <Label htmlFor="slackWebhookUrl">Incoming Webhook URL</Label>
+                   <Input
+                     id="slackWebhookUrl"
+                     type="url"
+                     placeholder="https://hooks.slack.com/services/..."
+                     value={notificationSettings.slackWebhookUrl || ""}
+                     onChange={(e) => setNotificationSettings({ ...notificationSettings, slackWebhookUrl: e.target.value })}
+                     disabled={isSavingNotification}
+                   />
+                   <p className="text-xs text-muted-foreground">
+                     Create an <strong>Incoming Webhook</strong> in your Slack workspace and paste the URL here.
+                     <a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline ml-1">
+                       Learn more <ExternalLink className="h-3 w-3" />
+                     </a>
+                   </p>
+                 </div>
+
+                 <div className="space-y-2">
+                   <Label htmlFor="slackChannel">Default Channel</Label>
+                   <Input
+                     id="slackChannel"
+                     placeholder="#expense-alerts or @username"
+                     value={notificationSettings.slackChannel || ""}
+                     onChange={(e) => setNotificationSettings({ ...notificationSettings, slackChannel: e.target.value })}
+                     disabled={isSavingNotification}
+                   />
+                   <p className="text-xs text-muted-foreground">
+                     Slack channel or user to receive notifications (e.g., #finance or @manager).
+                   </p>
+                 </div>
+
+                 <div className="space-y-2">
+                   <Label htmlFor="slackTeamId">Slack Team ID</Label>
+                   <Input
+                     id="slackTeamId"
+                     placeholder="T1234567890"
+                     value={notificationSettings.slackTeamId || ""}
+                     onChange={(e) => setNotificationSettings({ ...notificationSettings, slackTeamId: e.target.value })}
+                     disabled={isSavingNotification}
+                   />
+                   <p className="text-xs text-muted-foreground">
+                     Your Slack workspace ID (starts with "T"). Required for slash commands.
+                     <a href="https://api.slack.com/methods/team.info" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline ml-1">
+                       Find your Team ID <ExternalLink className="h-3 w-3" />
+                     </a>
+                   </p>
+                 </div>
+
+                 <div className="space-y-2">
+                   <Label htmlFor="slackUserEmailMappings">Slack User → Email Mappings (JSON)</Label>
+                   <Textarea
+                     id="slackUserEmailMappings"
+                     placeholder='{"U12345":"manager@company.com","U67890":"approver@company.com"}'
+                     value={notificationSettings.slackUserEmailMappings || ""}
+                     onChange={(e) => setNotificationSettings({ ...notificationSettings, slackUserEmailMappings: e.target.value })}
+                     disabled={isSavingNotification}
+                     rows={4}
+                   />
+                   <p className="text-xs text-muted-foreground">
+                     Map Slack user IDs to AiAudit email addresses for slash command approvals.
+                   </p>
+                 </div>
+               </div>
+
+               <Button type="submit" disabled={isSavingNotification} className="gap-2">
+                 {isSavingNotification && <Loader2 className="h-4 w-4 animate-spin" />}
+                 Save Settings
+               </Button>
+             </form>
+           </CardContent>
+         </Card>
+       )}
+
+       {/* Danger Zone */}
         <Card className="rounded-[2rem] border-destructive/40 bg-destructive/5 shadow-sm backdrop-blur">
           <CardHeader>
             <CardTitle className="text-destructive">Session</CardTitle>

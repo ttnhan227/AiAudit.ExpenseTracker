@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Server.Common;
 using Server.Dtos.Auth;
@@ -9,6 +10,7 @@ namespace Server.Services;
 
 public sealed class AuthService : IAuthService
 {
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly IUserRepository _userRepository;
     private readonly ITenantRepository _tenantRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
@@ -16,12 +18,14 @@ public sealed class AuthService : IAuthService
     private readonly JwtSettings _jwtSettings;
 
     public AuthService(
+        IDbContextFactory<AppDbContext> contextFactory,
         IUserRepository userRepository,
         ITenantRepository tenantRepository,
         IRefreshTokenRepository refreshTokenRepository,
         TokenService tokenService,
         IOptions<JwtSettings> jwtSettings)
     {
+        _contextFactory = contextFactory;
         _userRepository = userRepository;
         _tenantRepository = tenantRepository;
         _refreshTokenRepository = refreshTokenRepository;
@@ -31,14 +35,23 @@ public sealed class AuthService : IAuthService
 
     public async Task<ApiResult<AuthResponse>> RegisterAsync(RegisterRequest request)
     {
-        if (await _tenantRepository.CompanyExistsAsync(request.CompanyName))
-        {
-            return ApiResult<AuthResponse>.Fail("Company name already exists.");
-        }
-
-        if (await _userRepository.EmailExistsAsync(request.Email))
+        // SECURITY: Email uniqueness check must bypass RLS because the user is
+        // not yet authenticated. We use a separate context without RLS session context.
+        using var bypassContext = _contextFactory.CreateDbContext();
+        var emailAlreadyRegistered = await bypassContext.Users
+            .FromSqlRaw("SELECT * FROM public.\"Users\" WHERE \"Email\" = {0}", request.Email)
+            .AnyAsync();
+        if (emailAlreadyRegistered)
         {
             return ApiResult<AuthResponse>.Fail("Email already registered.");
+        }
+
+        var companyExists = await bypassContext.Tenants
+            .FromSqlRaw("SELECT * FROM public.\"Tenants\" WHERE \"CompanyName\" = {0}", request.CompanyName)
+            .AnyAsync();
+        if (companyExists)
+        {
+            return ApiResult<AuthResponse>.Fail("Company name already exists.");
         }
 
         var tenant = new Tenant
@@ -63,9 +76,25 @@ public sealed class AuthService : IAuthService
             Tenant = tenant
         };
 
-        await _tenantRepository.AddAsync(tenant);
-        await _userRepository.AddAsync(user);
-        await _tenantRepository.SaveChangesAsync();
+        // SECURITY: Insert with explicit tenant context to satisfy RLS policies
+        await using var transaction = await _tenantRepository.BeginTransactionAsync();
+        try
+        {
+            await _tenantRepository.ExecuteSqlRawAsync(
+                "SELECT set_config('app.current_tenant_id', @p0, true)",
+                tenant.Id.ToString());
+
+            await _tenantRepository.AddAsync(tenant);
+            await _userRepository.AddAsync(user);
+            await _tenantRepository.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
 
         return await BuildAuthResponseAsync(user);
     }
@@ -104,23 +133,49 @@ public sealed class AuthService : IAuthService
             return ApiResult<AuthResponse>.Fail("Invite token is invalid or expired.");
         }
 
-        user.PasswordHash = PasswordHasher.Hash(request.Password);
-        user.IsActive = true;
-        user.InviteToken = null;
-        user.InviteTokenExpiresAt = null;
-        await _userRepository.SaveChangesAsync();
+        // SECURITY: AcceptInvite works across tenants (unauthenticated user),
+        // so we set the tenant context within the transaction.
+        using var transaction = await _userRepository.BeginTransactionAsync();
+        try
+        {
+            await _userRepository.ExecuteSqlRawAsync(
+                "SELECT set_config('app.current_tenant_id', @p0, true)",
+                user.TenantId.ToString());
+
+            user.PasswordHash = PasswordHasher.Hash(request.Password);
+            user.IsActive = true;
+            user.InviteToken = null;
+            user.InviteTokenExpiresAt = null;
+            await _userRepository.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+        }
+        catch
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
 
         return await BuildAuthResponseAsync(user);
     }
 
     public async Task<ApiResult<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request)
     {
-        var token = await _refreshTokenRepository.GetByTokenAsync(request.RefreshToken);
+        // SECURITY: Refresh token lookup bypasses RLS via FromSqlRaw because the
+        // request is unauthenticated (401 scenario).
+        using var bypassContext = _contextFactory.CreateDbContext();
+        var token = await bypassContext.RefreshTokens
+            .FromSqlRaw("SELECT * FROM public.\"RefreshTokens\" WHERE \"Token\" = {0}", request.RefreshToken)
+            .Include(rt => rt.User)
+            .ThenInclude(u => u.Tenant)
+            .FirstOrDefaultAsync();
+
         if (token is null || token.Revoked || token.ExpiresAt <= DateTime.UtcNow || token.User is null || !token.User.IsActive)
         {
             return ApiResult<AuthResponse>.Fail("Refresh token is invalid or expired.");
         }
 
+        // Set tenant context before processing
         token.Revoked = true;
         var newRefreshToken = _tokenService.CreateRefreshToken(token.UserId);
         await _refreshTokenRepository.AddAsync(newRefreshToken);

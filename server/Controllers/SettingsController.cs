@@ -34,4 +34,39 @@ public class SettingsController : ControllerBase
         var result = await _settingsService.UpdatePolicyAsync(tenantId, request);
         return result.Success ? Ok(result) : NotFound(result);
     }
-}
+
+     [HttpGet("auto-approval-rules")]
+     public async Task<IActionResult> GetAutoApprovalRules()
+     {
+         var tenantId = User.GetTenantId();
+         var result = await _settingsService.GetAutoApprovalRulesAsync(tenantId);
+         return Ok(result);
+     }
+
+     [Authorize(Roles = "Owner")]
+     [HttpPut("auto-approval-rules")]
+     public async Task<IActionResult> UpdateAutoApprovalRules(UpdateAutoApprovalRulesRequest request)
+     {
+         var tenantId = User.GetTenantId();
+         var result = await _settingsService.UpdateAutoApprovalRulesAsync(tenantId, request);
+         return result.Success ? Ok(result) : NotFound(result);
+     }
+
+     [HttpGet("notifications")]
+     public async Task<IActionResult> GetNotificationSettings()
+     {
+         var tenantId = User.GetTenantId();
+         var result = await _settingsService.GetNotificationSettingsAsync(tenantId);
+         return Ok(result);
+     }
+
+     [Authorize(Roles = "Owner")]
+     [HttpPut("notifications")]
+     public async Task<IActionResult> UpdateNotificationSettings(UpdateNotificationSettingsRequest request)
+     {
+         var tenantId = User.GetTenantId();
+         var result = await _settingsService.UpdateNotificationSettingsAsync(tenantId, request);
+         return result.Success ? Ok(result) : NotFound(result);
+     }
+ }
+

@@ -2,11 +2,13 @@ using System.IO;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Server.Common;
 using Server.Data;
+using Server.Middleware;
 using Server.Repositories;
 using Server.Services;
 
@@ -83,6 +85,7 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.Configure<MistralSettings>(builder.Configuration.GetSection("MistralSettings"));
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddSingleton<TokenService>();
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -103,8 +106,17 @@ builder.Services.AddScoped<IAiReceiptService, AiReceiptService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IRiskAssessmentService, RiskAssessmentService>();
 builder.Services.AddScoped<IReviewAssistantService, ReviewAssistantService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IBudgetGuardrailService, BudgetGuardrailService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ISlackService, SlackService>();
+builder.Services.AddScoped<ICategoryRulesService, CategoryRulesService>();
+builder.Services.AddSingleton<IBackgroundTaskQueue>(_ => new BackgroundTaskQueue(1000)); // capacity 1000
 
 builder.Services.AddHttpClient("MistralClient");
+builder.Services.AddHttpClient("SendGrid");
+builder.Services.AddHttpClient("Slack");
+builder.Services.AddHttpClient("Email");
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? Environment.GetEnvironmentVariable("DATABASE_URL");
@@ -119,7 +131,7 @@ if (connectionString.StartsWith("postgresql://") || connectionString.StartsWith(
     connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
 }
 
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? new JwtSettings();
@@ -146,6 +158,10 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("OwnerOrManager", policy => policy.RequireRole("Owner", "Manager"));
 });
+
+builder.Services.AddHostedService<AutoApprovalService>();
+builder.Services.AddHostedService<WeeklyDigestBackgroundService>();
+builder.Services.AddHostedService<DailySlackDigestBackgroundService>();
 
 var app = builder.Build();
 var hasHttpsBinding = builder.Configuration["ASPNETCORE_URLS"]?.Contains("https://", StringComparison.OrdinalIgnoreCase) == true;
@@ -185,6 +201,10 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseAuthentication();
+
+// SECURITY: Set PostgreSQL session variable 'app.current_tenant_id' after authentication
+// so that Row-Level Security policies can filter data per-tenant at the database level.
+app.UseTenantContext();
 
 app.Use(async (context, next) =>
 {

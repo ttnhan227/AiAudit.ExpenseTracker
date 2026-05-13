@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Server.Models;
 
 namespace Server.Data;
@@ -10,106 +11,130 @@ public static class DatabaseSeeder
     {
         await context.Database.MigrateAsync();
 
-        if (await context.Tenants.AnyAsync())
+        // SECURITY: Temporarily disable RLS during seeding so demo data can be
+        // inserted for all tenants without requiring per-tenant session context.
+        await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Tenants\" DISABLE ROW LEVEL SECURITY");
+        await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Users\" DISABLE ROW LEVEL SECURITY");
+        await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Expenses\" DISABLE ROW LEVEL SECURITY");
+        await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Receipts\" DISABLE ROW LEVEL SECURITY");
+        await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"AuditLogs\" DISABLE ROW LEVEL SECURITY");
+        await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"RefreshTokens\" DISABLE ROW LEVEL SECURITY");
+        await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Subscriptions\" DISABLE ROW LEVEL SECURITY");
+
+        try
         {
-            return;
-        }
-
-        var now = DateTime.UtcNow;
-        var tenantSeeds = BuildTenantSeeds(now);
-
-        var tenants = new List<Tenant>();
-        var users = new List<User>();
-        var expenses = new List<Expense>();
-        var receipts = new List<Receipt>();
-        var auditLogs = new List<AuditLog>();
-        var refreshTokens = new List<RefreshToken>();
-        var sharedPasswordHash = Services.PasswordHasher.Hash("123");
-
-        foreach (var tenantSeed in tenantSeeds)
-        {
-            var tenant = new Tenant
+            if (await context.Tenants.AnyAsync())
             {
-                Id = Guid.NewGuid(),
-                CompanyName = tenantSeed.CompanyName,
-                ApiKey = tenantSeed.ApiKey,
-                PlanType = tenantSeed.PlanType,
-                MaxSpendLimit = tenantSeed.MaxSpendLimit,
-                PolicyNotes = tenantSeed.PolicyNotes
-            };
+                return;
+            }
 
-            tenants.Add(tenant);
+            var now = DateTime.UtcNow;
+            var tenantSeeds = BuildTenantSeeds(now);
 
-            foreach (var userSeed in tenantSeed.Users)
+            var tenants = new List<Tenant>();
+            var users = new List<User>();
+            var expenses = new List<Expense>();
+            var receipts = new List<Receipt>();
+            var auditLogs = new List<AuditLog>();
+            var refreshTokens = new List<RefreshToken>();
+            var sharedPasswordHash = Services.PasswordHasher.Hash("123");
+
+            foreach (var tenantSeed in tenantSeeds)
             {
-                var user = new User
+                var tenant = new Tenant
                 {
                     Id = Guid.NewGuid(),
-                    Email = userSeed.Email,
-                    PasswordHash = sharedPasswordHash,
-                    Role = userSeed.Role,
-                    Tenant = tenant
+                    CompanyName = tenantSeed.CompanyName,
+                    ApiKey = tenantSeed.ApiKey,
+                    PlanType = tenantSeed.PlanType,
+                    MaxSpendLimit = tenantSeed.MaxSpendLimit,
+                    PolicyNotes = tenantSeed.PolicyNotes
                 };
 
-                users.Add(user);
-                refreshTokens.Add(new RefreshToken
-                {
-                    Id = Guid.NewGuid(),
-                    User = user,
-                    Token = Guid.NewGuid().ToString("N"),
-                    ExpiresAt = now.AddDays(30),
-                    Revoked = false
-                });
+                tenants.Add(tenant);
 
-                foreach (var expenseSeed in userSeed.Expenses)
+                foreach (var userSeed in tenantSeed.Users)
                 {
-                    var expense = new Expense
+                    var user = new User
                     {
                         Id = Guid.NewGuid(),
-                        Tenant = tenant,
-                        User = user,
-                        Amount = expenseSeed.Amount,
-                        Currency = expenseSeed.Currency,
-                        Merchant = expenseSeed.Merchant,
-                        Category = expenseSeed.Category,
-                        Status = expenseSeed.Status,
-                        Date = expenseSeed.ExpenseDate,
-                        Description = expenseSeed.Description,
-                        Flagged = expenseSeed.Flagged,
-                        FlagReason = expenseSeed.FlagReason,
-                        CreatedAt = expenseSeed.CreatedAt,
-                        UpdatedAt = expenseSeed.UpdatedAt
+                        Email = userSeed.Email,
+                        PasswordHash = sharedPasswordHash,
+                        Role = userSeed.Role,
+                        Tenant = tenant
                     };
 
-                    expenses.Add(expense);
-                    receipts.Add(new Receipt
+                    users.Add(user);
+                    refreshTokens.Add(new RefreshToken
                     {
                         Id = Guid.NewGuid(),
-                        Expense = expense,
-                        FileUrl = expenseSeed.ReceiptFile,
-                        OcrRawData = JsonSerializer.Serialize(new
-                        {
-                            merchant = expenseSeed.Merchant,
-                            total = expenseSeed.Amount,
-                            currency = expenseSeed.Currency,
-                            expenseDate = expenseSeed.ExpenseDate.ToString("yyyy-MM-dd"),
-                            category = expenseSeed.Category
-                        })
+                        User = user,
+                        Token = Guid.NewGuid().ToString("N"),
+                        ExpiresAt = now.AddDays(30),
+                        Revoked = false
                     });
 
-                    auditLogs.AddRange(BuildAuditLogs(expense, user.Email, expenseSeed));
+                    foreach (var expenseSeed in userSeed.Expenses)
+                    {
+                        var expense = new Expense
+                        {
+                            Id = Guid.NewGuid(),
+                            Tenant = tenant,
+                            User = user,
+                            Amount = expenseSeed.Amount,
+                            Currency = expenseSeed.Currency,
+                            Merchant = expenseSeed.Merchant,
+                            Category = expenseSeed.Category,
+                            Status = expenseSeed.Status,
+                            Date = expenseSeed.ExpenseDate,
+                            Description = expenseSeed.Description,
+                            Flagged = expenseSeed.Flagged,
+                            FlagReason = expenseSeed.FlagReason,
+                            CreatedAt = expenseSeed.CreatedAt,
+                            UpdatedAt = expenseSeed.UpdatedAt
+                        };
+
+                        expenses.Add(expense);
+                        receipts.Add(new Receipt
+                        {
+                            Id = Guid.NewGuid(),
+                            Expense = expense,
+                            FileUrl = expenseSeed.ReceiptFile,
+                            OcrRawData = JsonSerializer.Serialize(new
+                            {
+                                merchant = expenseSeed.Merchant,
+                                total = expenseSeed.Amount,
+                                currency = expenseSeed.Currency,
+                                expenseDate = expenseSeed.ExpenseDate.ToString("yyyy-MM-dd"),
+                                category = expenseSeed.Category
+                            })
+                        });
+
+                        auditLogs.AddRange(BuildAuditLogs(expense, user.Email, expenseSeed));
+                    }
                 }
             }
+
+            context.Tenants.AddRange(tenants);
+            context.Users.AddRange(users);
+            context.Expenses.AddRange(expenses);
+            context.Receipts.AddRange(receipts);
+            context.AuditLogs.AddRange(auditLogs);
+            context.RefreshTokens.AddRange(refreshTokens);
+
+            await context.SaveChangesAsync();
         }
-
-        context.Tenants.AddRange(tenants);
-        context.Users.AddRange(users);
-        context.Expenses.AddRange(expenses);
-        context.Receipts.AddRange(receipts);
-        context.AuditLogs.AddRange(auditLogs);
-        context.RefreshTokens.AddRange(refreshTokens);
-
-        await context.SaveChangesAsync();
+        finally
+        {
+            // SECURITY: Re-enable RLS after seeding
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Tenants\" ENABLE ROW LEVEL SECURITY");
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Users\" ENABLE ROW LEVEL SECURITY");
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Expenses\" ENABLE ROW LEVEL SECURITY");
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Receipts\" ENABLE ROW LEVEL SECURITY");
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"AuditLogs\" ENABLE ROW LEVEL SECURITY");
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"RefreshTokens\" ENABLE ROW LEVEL SECURITY");
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE public.\"Subscriptions\" ENABLE ROW LEVEL SECURITY");
+        }
     }
 
     private static List<AuditLog> BuildAuditLogs(Expense expense, string email, ExpenseSeed seed)

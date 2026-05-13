@@ -33,6 +33,11 @@ public sealed class UserRepository : IUserRepository
         return _context.Users.FirstOrDefaultAsync(u => u.Id == id && u.TenantId == tenantId);
     }
 
+    public Task<User?> GetByEmailAndTenantAsync(string email, Guid tenantId)
+    {
+        return _context.Users.FirstOrDefaultAsync(u => u.Email == email && u.TenantId == tenantId);
+    }
+
     public Task<List<User>> GetByTenantIdAsync(Guid tenantId)
     {
         return _context.Users
@@ -60,5 +65,15 @@ public sealed class UserRepository : IUserRepository
     public Task SaveChangesAsync()
     {
         return _context.SaveChangesAsync();
+    }
+
+    public Task<IDbContextTransaction> BeginTransactionAsync()
+    {
+        return _context.Database.BeginTransactionAsync();
+    }
+
+    public Task ExecuteSqlRawAsync(string sql, params object[] parameters)
+    {
+        return _context.Database.ExecuteSqlRawAsync(sql, parameters);
     }
 }

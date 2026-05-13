@@ -12,14 +12,31 @@ public sealed class ExpenseService : IExpenseService
     private readonly IAuditLogService _auditLogService;
     private readonly IRiskAssessmentService _riskAssessmentService;
     private readonly IReviewAssistantService _reviewAssistantService;
+    private readonly INotificationService _notificationService;
+    private readonly IUserRepository _userRepository;
+    private readonly IBudgetGuardrailService _budgetGuardrailService;
+    private readonly ICategoryRulesService _categoryRulesService;
 
-    public ExpenseService(IExpenseRepository expenseRepository, ITenantRepository tenantRepository, IAuditLogService auditLogService, IRiskAssessmentService riskAssessmentService, IReviewAssistantService reviewAssistantService)
+    public ExpenseService(
+        IExpenseRepository expenseRepository,
+        ITenantRepository tenantRepository,
+        IAuditLogService auditLogService,
+        IRiskAssessmentService riskAssessmentService,
+        IReviewAssistantService reviewAssistantService,
+        INotificationService notificationService,
+        IUserRepository userRepository,
+        IBudgetGuardrailService budgetGuardrailService,
+        ICategoryRulesService categoryRulesService)
     {
         _expenseRepository = expenseRepository;
         _tenantRepository = tenantRepository;
         _auditLogService = auditLogService;
         _riskAssessmentService = riskAssessmentService;
         _reviewAssistantService = reviewAssistantService;
+        _notificationService = notificationService;
+        _userRepository = userRepository;
+        _budgetGuardrailService = budgetGuardrailService;
+        _categoryRulesService = categoryRulesService;
     }
 
     public async Task<ApiResult<IEnumerable<ExpenseResponse>>> GetMyExpensesAsync(Guid tenantId, string role, Guid userId)
@@ -84,11 +101,22 @@ public sealed class ExpenseService : IExpenseService
             Category = request.Category,
             Description = request.Description,
             Status = ExpenseStatuses.Draft,
-            Date = UtcDateTime.Normalize(request.Date),
+            Date = DateTime.SpecifyKind(request.Date, DateTimeKind.Utc),
+            IsDeleted = false,
             TenantId = tenantId,
             UserId = userId,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
         };
+
+        // Auto-categorization: if Category is empty/Uncategorized, try rules engine
+        if (string.IsNullOrWhiteSpace(expense.Category) || expense.Category.Equals("Uncategorized", StringComparison.OrdinalIgnoreCase))
+        {
+            var suggested = await _categoryRulesService.SuggestCategoryAsync(tenant, expense.Merchant, expense.Description);
+            if (suggested != null)
+            {
+                expense.Category = suggested;
+            }
+        }
 
         var tenantExpenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
         var assessment = _riskAssessmentService.EvaluateExpense(expense, tenant.MaxSpendLimit, [ ..tenantExpenses, expense ]);
@@ -127,8 +155,8 @@ public sealed class ExpenseService : IExpenseService
         expense.Currency = request.Currency;
         expense.Merchant = request.Merchant;
         expense.Category = request.Category;
-        expense.Date = UtcDateTime.Normalize(request.Date);
         expense.Description = request.Description;
+        expense.Date = DateTime.SpecifyKind(request.Date, DateTimeKind.Utc);
         expense.UpdatedAt = DateTime.UtcNow;
 
         var tenant = await _tenantRepository.GetByIdAsync(tenantId);
@@ -185,6 +213,29 @@ public sealed class ExpenseService : IExpenseService
 
         var tenantExpenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
         var assessment = _riskAssessmentService.EvaluateExpense(expense, tenant.MaxSpendLimit, tenantExpenses);
+        
+        var anomalyResult = RiskAssessmentService.DetectAnomalies(expense, tenantExpenses);
+        if (anomalyResult.Anomalies.Length > 0)
+        {
+            var employee = await _userRepository.GetByIdAsync(expense.UserId);
+            for (var i = 0; i < anomalyResult.Anomalies.Length; i++)
+            {
+                await _notificationService.NotifyAnomalyDetectedAsync(
+                    expense,
+                    anomalyResult.Flags[i],
+                    anomalyResult.Anomalies[i],
+                    employee!
+                );
+            }
+        }
+
+        var budgetAlerts = await _budgetGuardrailService.CheckBudgetAlertsAsync(tenant, expense);
+        if (budgetAlerts.Any(a => a.AlertType == "at_limit"))
+        {
+            expense.Flagged = true;
+            expense.FlagReason = "Category budget limit reached";
+        }
+
         var visibleExpenses = HasTenantWideExpenseAccess(role)
             ? tenantExpenses
             : tenantExpenses.Where(candidate => candidate.UserId == userId).Append(expense).ToList();
@@ -236,9 +287,12 @@ public sealed class ExpenseService : IExpenseService
         return ApiResult<ExpenseStatsResponse>.Ok(new ExpenseStatsResponse(totalSpent, averageSpend, expenseCount, pendingCount, draftCount, highRiskCount, averageRiskScore, insights));
     }
 
-    private ExpenseResponse ToResponse(Expense expense, RiskEvaluationResult assessment, IEnumerable<Expense> tenantExpenses)
+    private ExpenseResponse ToResponse(Expense expense, RiskEvaluationResult assessment, IReadOnlyCollection<Expense> tenantExpenses)
     {
         var review = _reviewAssistantService.BuildReview(expense.Id, tenantExpenses, expense, assessment);
+        var anomalyResult = RiskAssessmentService.DetectAnomalies(expense, tenantExpenses);
+        var anomalies = anomalyResult.Anomalies.Select(a => new AnomalyFlagResponse(anomalyResult.Flags[Array.IndexOf(anomalyResult.Anomalies, a)], a)).ToArray();
+        
         return new ExpenseResponse(
             expense.Id,
             expense.Amount,
@@ -253,8 +307,9 @@ public sealed class ExpenseService : IExpenseService
             expense.FlagReason,
             expense.Description,
             expense.Receipts.Select(r => r.FileUrl).ToArray(),
-                assessment.ToResponse(),
-                review);
+            assessment.ToResponse(),
+            review,
+            anomalies);
     }
 
     private static Expense CloneExpense(Expense expense)
@@ -314,5 +369,52 @@ public sealed class ExpenseService : IExpenseService
     {
         return status.Equals(ExpenseStatuses.Pending, StringComparison.OrdinalIgnoreCase)
             || status.Equals("Submitted", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public async Task<int> ProcessAutoApprovalsAsync(Guid tenantId)
+    {
+        var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+        if (tenant is null || !tenant.AutoApprovalEnabled)
+        {
+            return 0;
+        }
+
+        var excludedCategories = string.IsNullOrWhiteSpace(tenant.AutoApprovalExcludedCategories)
+            ? Array.Empty<string>()
+            : System.Text.Json.JsonSerializer.Deserialize<string[]>(tenant.AutoApprovalExcludedCategories) ?? Array.Empty<string>();
+
+        var pendingExpenses = await _expenseRepository.GetPendingExpensesAsync(tenantId);
+        var minAge = DateTime.UtcNow.AddHours(-tenant.AutoApprovalMinAgeHours);
+
+        var eligibleExpenses = pendingExpenses
+            .Where(e => e.CreatedAt <= minAge)
+            .Where(e => e.Amount <= tenant.AutoApprovalMaxAmount)
+            .Where(e => !tenant.AutoApprovalExcludeWeekends || !IsWeekendExpense(e.Date))
+            .Where(e => excludedCategories.Contains(e.Category, StringComparer.OrdinalIgnoreCase) == false)
+            .ToList();
+
+        var tenantExpenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
+        var assessments = _riskAssessmentService.EvaluateExpenses(eligibleExpenses, tenant.MaxSpendLimit, tenantExpenses);
+
+        var approvedCount = 0;
+        foreach (var expense in eligibleExpenses.Where(e => assessments[e.Id].RiskScore <= tenant.AutoApprovalMaxRiskScore))
+        {
+            expense.Status = ExpenseStatuses.Approved;
+            expense.UpdatedAt = DateTime.UtcNow;
+            await _auditLogService.LogExpenseApprovedAsync(expense, "Auto-Approval System");
+            approvedCount++;
+        }
+
+        if (approvedCount > 0)
+        {
+            await _expenseRepository.SaveChangesAsync();
+        }
+
+        return approvedCount;
+    }
+
+    private static bool IsWeekendExpense(DateTime date)
+    {
+        return date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
     }
 }

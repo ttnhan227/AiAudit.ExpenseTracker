@@ -109,7 +109,27 @@ export interface RejectRequest {
   reason: string;
 }
 
+export interface BudgetPrediction {
+  predictedMonthTotal: number;
+  confidencePercentage: number;
+  healthStatus: string;
+  variancePercentage: number;
+  daysRemaining: number;
+}
+
 export const managerService = {
+  getBudgetPrediction: async (): Promise<ApiResponse<BudgetPrediction>> => {
+    try {
+      const response = await apiClient.get("/manager/budget-prediction");
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || "Failed to fetch budget prediction",
+      };
+    }
+  },
+
   getPendingExpenses: async (): Promise<ApiResponse<PendingExpense[]>> => {
     try {
       const response = await apiClient.get("/manager/pending");

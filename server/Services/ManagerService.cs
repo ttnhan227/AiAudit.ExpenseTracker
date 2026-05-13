@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Server.Common;
 using Server.Dtos.Manager;
 using Server.Models;
@@ -15,8 +16,22 @@ public sealed class ManagerService : IManagerService
     private readonly ITenantRepository _tenantRepository;
     private readonly IRiskAssessmentService _riskAssessmentService;
     private readonly IReviewAssistantService _reviewAssistantService;
+    private readonly INotificationService _notificationService;
+    private readonly IUserRepository _userRepository;
+    private readonly IBudgetGuardrailService _budgetGuardrailService;
+    private readonly ILogger<ManagerService> _logger;
 
-    public ManagerService(IExpenseRepository expenseRepository, IAuditLogRepository auditLogRepository, IAuditLogService auditLogService, ITenantRepository tenantRepository, IRiskAssessmentService riskAssessmentService, IReviewAssistantService reviewAssistantService)
+    public ManagerService(
+        IExpenseRepository expenseRepository,
+        IAuditLogRepository auditLogRepository,
+        IAuditLogService auditLogService,
+        ITenantRepository tenantRepository,
+        IRiskAssessmentService riskAssessmentService,
+        IReviewAssistantService reviewAssistantService,
+        INotificationService notificationService,
+        IUserRepository userRepository,
+        IBudgetGuardrailService budgetGuardrailService,
+        ILogger<ManagerService> logger)
     {
         _expenseRepository = expenseRepository;
         _auditLogRepository = auditLogRepository;
@@ -24,6 +39,10 @@ public sealed class ManagerService : IManagerService
         _tenantRepository = tenantRepository;
         _riskAssessmentService = riskAssessmentService;
         _reviewAssistantService = reviewAssistantService;
+        _notificationService = notificationService;
+        _userRepository = userRepository;
+        _budgetGuardrailService = budgetGuardrailService;
+        _logger = logger;
     }
 
     public async Task<ApiResult<IEnumerable<PendingExpenseResponse>>> GetPendingExpensesAsync(Guid tenantId)
@@ -195,6 +214,23 @@ public sealed class ManagerService : IManagerService
         await _auditLogService.LogExpenseRejectedAsync(expense, performedBy, request.Reason);
         await _expenseRepository.SaveChangesAsync();
 
+        // Send rejection email notification asynchronously
+        var approver = await _userRepository.GetByEmailAndTenantAsync(performedBy, tenantId);
+        if (approver != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _notificationService.SendExpenseRejectedAsync(expense, request.Reason, approver);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send rejection notification for expense {ExpenseId}", expense.Id);
+                }
+            });
+        }
+
         return ApiResult.Ok();
     }
 
@@ -211,21 +247,121 @@ public sealed class ManagerService : IManagerService
         return ApiResult<IEnumerable<AuditEntryResponse>>.Ok(result);
     }
 
-    public async Task<FileContentResult> ExportTenantExpensesAsync(Guid tenantId)
-    {
-        var expenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
-        var csv = new StringBuilder();
-        csv.AppendLine("Id,EmployeeEmail,Amount,Currency,Merchant,Category,Status,Date,Flagged,FlagReason,Description,Receipts");
+public async Task<FileContentResult> ExportTenantExpensesAsync(Guid tenantId)
+     {
+         var expenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
+         var csv = new StringBuilder();
+         csv.AppendLine("Id,EmployeeEmail,Amount,Currency,Merchant,Category,Status,Date,Flagged,FlagReason,Description,Receipts");
 
-        foreach (var expense in expenses)
+         foreach (var expense in expenses)
+         {
+             var receipts = string.Join("|", expense.Receipts.Select(r => r.FileUrl));
+             csv.AppendLine($"{expense.Id},\"{EscapeValue(expense.User?.Email)}\",{expense.Amount},{expense.Currency},\"{EscapeValue(expense.Merchant)}\",\"{EscapeValue(expense.Category)}\",{expense.Status},{expense.Date:O},{expense.Flagged},\"{EscapeValue(expense.FlagReason)}\",\"{EscapeValue(expense.Description)}\",\"{EscapeValue(receipts)}\"");
+         }
+
+         var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+         return new FileContentResult(bytes, "text/csv") { FileDownloadName = $"tenant-expenses-{DateTime.UtcNow:yyyyMMdd}.csv" };
+     }
+
+     public async Task<FileContentResult> ExportToQuickBooksAsync(Guid tenantId)
+     {
+         var expenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
+         var csv = new StringBuilder();
+
+         // QuickBooks IIF format header
+         csv.AppendLine("!TRNS\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO");
+         csv.AppendLine("!SPL\tSPLACCNT\tNAME\tAMOUNT");
+         csv.AppendLine("!ENDTRNS");
+
+         foreach (var expense in expenses)
+         {
+             var date = expense.Date.ToString("MM/dd/yyyy");
+             var amount = expense.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+
+             // Main transaction row
+             csv.AppendLine($"TRNS\tEXPENSE\t{date}\tExpenses:{expense.Category}\t{expense.Merchant}\t-{amount}\t{expense.Description ?? expense.Category}");
+
+             // Split row (required by QuickBooks)
+             var splitAccount = "Accounts Payable";
+             csv.AppendLine($"SPL\t{splitAccount}\t{expense.User?.Email ?? "Unknown"}\t{amount}");
+
+             csv.AppendLine("ENDTRNS");
+         }
+
+         var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+         return new FileContentResult(bytes, "text/csv")
+         {
+             FileDownloadName = $"quickbooks-export-{DateTime.UtcNow:yyyyMMdd}.iif"
+         };
+     }
+
+     public async Task<FileContentResult> ExportToXeroAsync(Guid tenantId)
+     {
+         var expenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
+         var csv = new StringBuilder();
+
+         // Xero CSV format - simplified version of their standard format
+         csv.AppendLine("Date,ContactName,ContactNumber,AccountCode,Description,Quantity,UnitAmount,Total,CurrencyCode,TaxType,TaxAmount,ExchangeRate");
+
+          foreach (var expense in expenses)
+          {
+              var date = expense.Date.ToString("yyyy-MM-dd");
+              var amount = expense.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
+              var contactName = expense.User?.Email ?? "Unknown Employee";
+              var accountCode = MapCategoryToAccountCode(expense.Category);
+              var description = EscapeValue(expense.Description ?? expense.Merchant);
+
+              csv.AppendLine($"{date},{EscapeValue(contactName)},,,{description},1,{amount},{amount},{expense.Currency ?? "USD"},NONE,0,1");
+          }
+
+         var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+         return new FileContentResult(bytes, "text/csv")
+         {
+             FileDownloadName = $"xero-export-{DateTime.UtcNow:yyyyMMdd}.csv"
+         };
+     }
+
+      private static string MapCategoryToAccountCode(string category)
+      {
+          return category.ToLower() switch
+          {
+              "travel" => "6100",
+              "meals" => "6200",
+              "accommodation" => "6300",
+              "office supplies" => "6400",
+              "software" => "6500",
+              "training" => "6600",
+              _ => "6999" // Miscellaneous
+          };
+      }
+
+    public async Task<ApiResult<BudgetPredictionResponse>> GetBudgetPredictionAsync(Guid tenantId)
+    {
+        var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+        if (tenant is null)
         {
-            var receipts = string.Join("|", expense.Receipts.Select(r => r.FileUrl));
-            csv.AppendLine($"{expense.Id},\"{EscapeValue(expense.User?.Email)}\",{expense.Amount},{expense.Currency},\"{EscapeValue(expense.Merchant)}\",\"{EscapeValue(expense.Category)}\",{expense.Status},{expense.Date:O},{expense.Flagged},\"{EscapeValue(expense.FlagReason)}\",\"{EscapeValue(expense.Description)}\",\"{EscapeValue(receipts)}\"");
+            return ApiResult<BudgetPredictionResponse>.Fail("Tenant not found.");
         }
 
-        var bytes = Encoding.UTF8.GetBytes(csv.ToString());
-        return new FileContentResult(bytes, "text/csv") { FileDownloadName = $"tenant-expenses-{DateTime.UtcNow:yyyyMMdd}.csv" };
+        var prediction = await _budgetGuardrailService.GetBudgetPredictionAsync(tenant);
+        return prediction;
     }
+
+    private static List<(DateTime Month, decimal Value)> GetLast6MonthsOfData(IEnumerable<Expense> expenses)
+     {
+         var now = DateTime.UtcNow;
+         return Enumerable.Range(0, 6)
+             .Select(offset => new DateTime(now.Year, now.Month, 1).AddMonths(-offset))
+             .Select(month =>
+             {
+                 var start = new DateTime(month.Year, month.Month, 1);
+                 var end = start.AddMonths(1).AddDays(-1);
+                 var monthData = expenses.Where(e => e.Date >= start && e.Date <= end);
+                 return (start, monthData.Sum(e => e.Amount));
+             })
+             .OrderBy(m => m.Item1)
+             .ToList();
+     }
 
     private static string EscapeValue(string? value)
     {
@@ -379,5 +515,21 @@ public sealed class ManagerService : IManagerService
         var escalationRate = expenseCount == 0 ? 0m : decimal.Round((decimal)escalationCount / expenseCount * 100m, 2);
 
         return new OperationalKpiInsightResponse(slaBreachRate, escalationRate, totalDecisions, slaBreachedDecisions, escalationCount);
+    }
+
+    private static decimal CalculateConfidence(List<(DateTime Month, decimal Value)> historicalMonths, decimal dailyAverage, decimal currentMonthTotal)
+    {
+        if (historicalMonths.Count == 0) return 30m;
+        
+        var avgDaily = (double)historicalMonths.Average(m => m.Value / 30m);
+        var variance = historicalMonths.Count > 1 
+            ? Math.Sqrt(historicalMonths.Sum(m => Math.Pow((double)((m.Value / 30m) - (decimal)avgDaily), 2)) / (historicalMonths.Count - 1)) 
+            : 0;
+        
+        var stabilityFactor = Math.Exp(-(double)(variance / avgDaily));
+        var currentDay = DateTime.UtcNow.Day;
+        var progressFactor = Math.Min(1.0, (double)currentDay / 30.0);
+        
+        return Math.Min(95m, Math.Max(30m, decimal.Round(30 + (decimal)(stabilityFactor * 50 + progressFactor * 15), 1)));
     }
 }

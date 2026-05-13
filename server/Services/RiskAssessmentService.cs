@@ -133,4 +133,33 @@ public sealed class RiskAssessmentService : IRiskAssessmentService
     {
         return merchant.Trim().ToUpperInvariant();
     }
+
+    public static AnomalyDetectionResult DetectAnomalies(Expense expense, IReadOnlyCollection<Expense> tenantExpenses)
+    {
+        var anomalies = new List<string>();
+        var flags = new List<string>();
+
+        // Duplicate detection
+        if (HasDuplicateLikeMatch(expense, tenantExpenses))
+        {
+            anomalies.Add("Possible duplicate claim detected");
+            flags.Add("duplicate_detection");
+        }
+
+        // Rapid submission (5+ in 24h)
+        var recentCount = tenantExpenses.Count(e => 
+            e.UserId == expense.UserId && 
+            e.Id != expense.Id &&
+            Math.Abs((e.Date - expense.Date).TotalHours) <= 24);
+        
+        if (recentCount >= 5)
+        {
+            anomalies.Add("Unusually high submission frequency");
+            flags.Add("rapid_submission");
+        }
+
+        return new AnomalyDetectionResult(anomalies.ToArray(), flags.ToArray());
+    }
+
+    public sealed record AnomalyDetectionResult(string[] Anomalies, string[] Flags);
 }

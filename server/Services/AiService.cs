@@ -151,9 +151,12 @@ public sealed class AiService : IAiService
         return ApiResult<AiUsageResponse>.Ok(usage);
     }
 
-    private ExpenseResponse ToResponse(Expense expense, RiskEvaluationResult assessment, IEnumerable<Expense> tenantExpenses)
+    private ExpenseResponse ToResponse(Expense expense, RiskEvaluationResult assessment, IReadOnlyCollection<Expense> tenantExpenses)
     {
         var review = _reviewAssistantService.BuildReview(expense.Id, tenantExpenses, expense, assessment);
+        var anomalyResult = RiskAssessmentService.DetectAnomalies(expense, tenantExpenses);
+        var anomalies = anomalyResult.Anomalies.Select(a => new AnomalyFlagResponse(anomalyResult.Flags[Array.IndexOf(anomalyResult.Anomalies, a)], a)).ToArray();
+        
         return new ExpenseResponse(
             expense.Id,
             expense.Amount,
@@ -169,6 +172,7 @@ public sealed class AiService : IAiService
             expense.Description,
             expense.Receipts.Select(r => r.FileUrl).ToArray(),
             assessment.ToResponse(),
-            review);
+            review,
+            anomalies);
     }
 }

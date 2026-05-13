@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Server.Data;
@@ -11,9 +12,11 @@ using Server.Data;
 namespace server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260509123935_AddAutoApprovalFields")]
+    partial class AddAutoApprovalFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -32,7 +35,7 @@ namespace server.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("ExpenseId")
+                    b.Property<Guid>("ExpenseId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("NewValue")
@@ -267,51 +270,18 @@ namespace server.Migrations
                     b.Property<int>("AutoApprovalMinAgeHours")
                         .HasColumnType("integer");
 
-                    b.Property<string>("CategoryBudgets")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CategoryRules")
-                        .HasColumnType("text");
-
                     b.Property<string>("CompanyName")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<bool>("EmailNotificationsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("ManagerEmail")
-                        .HasColumnType("text");
-
                     b.Property<decimal>("MaxSpendLimit")
                         .HasColumnType("numeric");
-
-                    b.Property<string>("NoReplyEmail")
-                        .HasColumnType("text");
 
                     b.Property<string>("PlanType")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("PolicyNotes")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SlackChannel")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("SlackNotificationsEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("SlackTeamId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SlackUserEmailMappings")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SlackVerificationToken")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SlackWebhookUrl")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
@@ -366,7 +336,8 @@ namespace server.Migrations
                     b.HasOne("Server.Models.Expense", "Expense")
                         .WithMany("AuditLogs")
                         .HasForeignKey("ExpenseId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Expense");
                 });

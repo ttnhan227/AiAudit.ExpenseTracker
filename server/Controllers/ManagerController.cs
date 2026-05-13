@@ -70,11 +70,35 @@ public class ManagerController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [HttpGet("export")]
-    public async Task<IActionResult> ExportTenantExpenses()
-    {
-        var tenantId = User.GetTenantId();
-        var fileResult = await _managerService.ExportTenantExpensesAsync(tenantId);
-        return fileResult;
-    }
-}
+     [HttpGet("export")]
+     public async Task<IActionResult> ExportTenantExpenses()
+     {
+         var tenantId = User.GetTenantId();
+         var fileResult = await _managerService.ExportTenantExpensesAsync(tenantId);
+         return fileResult;
+     }
+
+     [HttpGet("export/quickbooks")]
+     public async Task<IActionResult> ExportToQuickBooks()
+     {
+         var tenantId = User.GetTenantId();
+         var fileResult = await _managerService.ExportToQuickBooksAsync(tenantId);
+         return fileResult;
+     }
+
+     [HttpGet("export/xero")]
+     public async Task<IActionResult> ExportToXero()
+     {
+         var tenantId = User.GetTenantId();
+         var fileResult = await _managerService.ExportToXeroAsync(tenantId);
+         return fileResult;
+     }
+
+     [HttpGet("budget-prediction")]
+     public async Task<IActionResult> GetBudgetPrediction()
+     {
+         var tenantId = User.GetTenantId();
+         var result = await _managerService.GetBudgetPredictionAsync(tenantId);
+         return Ok(result);
+     }
+ }

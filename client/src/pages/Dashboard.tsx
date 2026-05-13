@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { expenseService, ExpenseStats } from "@/services/expenseService";
-import { managerService, AuditInsight } from "@/services/managerService";
+import { managerService, AuditInsight, BudgetPrediction } from "@/services/managerService";
 import { subscriptionService, CurrentSubscription } from "@/services/subscriptionService";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   BarChart,
   Bar,
@@ -34,6 +35,8 @@ import {
   ShieldAlert,
   CreditCard,
   Calendar,
+  Brain,
+  Target,
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -42,9 +45,10 @@ const Dashboard = () => {
   const [subscription, setSubscription] = useState<CurrentSubscription | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [auditInsights, setAuditInsights] = useState<AuditInsight | null>(null);
+  const [budgetPrediction, setBudgetPrediction] = useState<BudgetPrediction | null>(null);
    const isManager = user?.role === "Manager" || user?.role === "Owner";
-   const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
-   const canAccessSubscription = user?.role === "Owner" || user?.role === "Member";
+    const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
+    const canAccessSubscription = user?.role === "Owner" || user?.role === "Member";
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -79,6 +83,17 @@ const Dashboard = () => {
       }
     };
     fetchInsights();
+  }, [isManager]);
+
+  useEffect(() => {
+    if (!isManager) return;
+    const fetchBudgetPrediction = async () => {
+      const result = await managerService.getBudgetPrediction();
+      if (result.success && result.data) {
+        setBudgetPrediction(result.data);
+      }
+    };
+    fetchBudgetPrediction();
   }, [isManager]);
 
   if (isLoading) {
@@ -230,6 +245,59 @@ const Dashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Budget Prediction - Managers Only */}
+        {isManager && budgetPrediction && (
+          <Card className={`rounded-[2rem] bg-gradient-to-br shadow-sm backdrop-blur border ${
+            budgetPrediction.healthStatus === "Healthy"
+              ? "border-primary/20 from-primary/5 to-primary/2"
+              : budgetPrediction.healthStatus === "Warning"
+              ? "border-secondary/20 from-secondary/5 to-secondary/2"
+              : "border-destructive/20 from-destructive/5 to-destructive/2"
+          }`}>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <CardTitle>AI Budget Forecast</CardTitle>
+              </div>
+              <CardDescription>Predicted month-end spending with confidence</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-3xl font-bold">{formatCurrency(budgetPrediction.predictedMonthTotal)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {budgetPrediction.daysRemaining} days remaining
+                  </p>
+                </div>
+                <Badge variant={
+                  budgetPrediction.healthStatus === "Healthy" ? "default" :
+                  budgetPrediction.healthStatus === "Warning" ? "secondary" : "destructive"
+                } className="text-sm">
+                  {budgetPrediction.healthStatus}
+                </Badge>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Confidence</span>
+                  <span>{budgetPrediction.confidencePercentage}%</span>
+                </div>
+                <Progress value={budgetPrediction.confidencePercentage} className="h-2" />
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {budgetPrediction.variancePercentage > 0 ? (
+                  <span className="text-destructive">
+                    +{budgetPrediction.variancePercentage}% vs historical average
+                  </span>
+                ) : (
+                  <span className="text-primary">
+                    {budgetPrediction.variancePercentage}% vs historical average
+                  </span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Charts */}
         <div className="grid gap-4 lg:grid-cols-2">

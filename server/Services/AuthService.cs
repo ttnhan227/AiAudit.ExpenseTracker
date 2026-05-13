@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Server.Common;
+using Server.Data;
 using Server.Dtos.Auth;
 using Server.Models;
 using Server.Repositories;

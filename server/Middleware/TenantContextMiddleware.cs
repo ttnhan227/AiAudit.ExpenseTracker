@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Server.Common;
+using Server.Data;
 
 namespace Server.Middleware;
 

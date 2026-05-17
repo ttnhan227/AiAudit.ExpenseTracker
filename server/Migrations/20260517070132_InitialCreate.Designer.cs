@@ -12,8 +12,8 @@ using Server.Data;
 namespace server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260516091738_AddExpenseReviewFeedback")]
-    partial class AddExpenseReviewFeedback
+    [Migration("20260517070132_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -56,7 +56,9 @@ namespace server.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExpenseId");
+                    b.HasIndex("PerformedBy");
+
+                    b.HasIndex("ExpenseId", "Timestamp");
 
                     b.ToTable("AuditLogs");
                 });
@@ -68,6 +70,9 @@ namespace server.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Amount")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("BaseAmount")
                         .HasColumnType("numeric");
 
                     b.Property<string>("Category")
@@ -125,9 +130,9 @@ namespace server.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId");
-
                     b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "IsDeleted", "CreatedAt");
 
                     b.ToTable("Expenses");
                 });
@@ -321,6 +326,13 @@ namespace server.Migrations
                     b.Property<int>("AutoApprovalMinAgeHours")
                         .HasColumnType("integer");
 
+                    b.Property<string>("BaseCurrency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("USD");
+
                     b.Property<string>("CategoryBudgets")
                         .HasColumnType("text");
 
@@ -409,6 +421,13 @@ namespace server.Migrations
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("PreferredCurrency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("USD");
 
                     b.Property<string>("Role")
                         .IsRequired()

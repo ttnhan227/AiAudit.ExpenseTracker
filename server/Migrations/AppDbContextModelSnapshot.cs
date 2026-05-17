@@ -53,7 +53,9 @@ namespace server.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExpenseId");
+                    b.HasIndex("PerformedBy");
+
+                    b.HasIndex("ExpenseId", "Timestamp");
 
                     b.ToTable("AuditLogs");
                 });
@@ -125,9 +127,9 @@ namespace server.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId");
-
                     b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "IsDeleted", "CreatedAt");
 
                     b.ToTable("Expenses");
                 });

@@ -11,11 +11,16 @@ public sealed record ReviewTurnaroundInsightResponse(decimal AverageApprovalHour
 public sealed record OperationalKpiInsightResponse(decimal SlaBreachRate, decimal EscalationRate, int TotalDecisions, int SlaBreachedDecisions, int EscalationCount);
 public sealed record MonthlyHighRiskInsightResponse(string MonthLabel, int HighRiskCount, int ReviewedCount);
 public sealed record MonthlyPolicyTriggerInsightResponse(string MonthLabel, int TriggeredCount);
-public sealed record AuditInsightsResponse(int ApprovedCount, int RejectedCount, int FlaggedCount, int HighRiskCount, ReviewTurnaroundInsightResponse Turnaround, OperationalKpiInsightResponse OperationalKpis, RejectionReasonInsightResponse[] TopRejectionReasons, CategoryFlagInsightResponse[] HighestFlaggedCategories, EmployeeFlagInsightResponse[] HighestFlagRateEmployees, PolicyTriggerInsightResponse[] TopPolicyTriggers, MonthlyHighRiskInsightResponse[] MonthlyHighRiskTrend, MonthlyPolicyTriggerInsightResponse[] MonthlyPolicyTriggerTrend);
+public sealed record PolicyRecommendationResponse(string Title, string Recommendation, decimal EstimatedSavings, string Benchmark);
+public sealed record EmployeeBehaviorInsightResponse(string EmployeeEmail, string Insight, string Nudge, int SignalCount);
+public sealed record AuditInsightsResponse(int ApprovedCount, int RejectedCount, int FlaggedCount, int HighRiskCount, ReviewTurnaroundInsightResponse Turnaround, OperationalKpiInsightResponse OperationalKpis, LearningMetricsResponse LearningMetrics, PolicyRecommendationResponse[] PolicyRecommendations, EmployeeBehaviorInsightResponse[] EmployeeBehaviorInsights, RejectionReasonInsightResponse[] TopRejectionReasons, CategoryFlagInsightResponse[] HighestFlaggedCategories, EmployeeFlagInsightResponse[] HighestFlagRateEmployees, PolicyTriggerInsightResponse[] TopPolicyTriggers, MonthlyHighRiskInsightResponse[] MonthlyHighRiskTrend, MonthlyPolicyTriggerInsightResponse[] MonthlyPolicyTriggerTrend);
 public sealed record ApproveExpenseResponse(Guid ExpenseId, string Status, DateTime Timestamp);
 public sealed record RejectExpenseRequest(string Reason);
+public sealed record SubmitReviewFeedbackRequest(string CorrectedRiskLevel, bool WasFalsePositive, string? Notes);
+public sealed record ReviewFeedbackResponse(Guid Id, Guid ExpenseId, string CorrectedRiskLevel, bool WasFalsePositive, bool WasAutoApproved, decimal ConfidenceScore, DateTime CreatedAt);
+public sealed record LearningMetricsResponse(int FeedbackCount, int FalsePositiveCount, int AutoApprovalFalsePositiveCount, decimal FalsePositiveRate, decimal CurrentConfidenceScore, decimal ConfidenceTrendPercentage);
 public sealed record AuditEntryResponse(Guid Id, string Action, string PerformedBy, DateTime Timestamp, string? Notes, string? OldValue, string? NewValue);
-public sealed record BudgetPredictionResponse(decimal PredictedMonthTotal, decimal ConfidencePercentage, string HealthStatus, decimal VariancePercentage, int DaysRemaining);
+public sealed record BudgetPredictionResponse(decimal PredictedMonthTotal, decimal ConfidencePercentage, string HealthStatus, decimal VariancePercentage, int DaysRemaining, CategoryPrediction[] CategoryPredictions);
 public sealed record MonthlySpendPoint(string Month, decimal Amount);
 public sealed record ForecastResponse(MonthlySpendPoint[] HistoricalData, MonthlySpendPoint[] ProjectedData, decimal CurrentMonthProjection, decimal NextMonthProjection, decimal TrendPercentage);
 

@@ -78,6 +78,22 @@ public class ExpensesController : ControllerBase
     }
 
     [Authorize(Roles = "Owner,Manager,Member")]
+    [HttpPut("bulk-update")]
+    public async Task<IActionResult> BulkUpdateExpenses([FromBody] IEnumerable<ExpenseBulkUpdateRequest> requests)
+    {
+        var tenantId = User.GetTenantId();
+        var userId = User.GetUserId();
+        var performedBy = User.GetUserEmail();
+        var result = await _expenseService.BulkUpdateExpensesAsync(tenantId, userId, performedBy, requests);
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
+    [Authorize(Roles = "Owner,Manager,Member")]
     [HttpPost("{id}/submit")]
     public async Task<IActionResult> SubmitExpense(Guid id)
     {

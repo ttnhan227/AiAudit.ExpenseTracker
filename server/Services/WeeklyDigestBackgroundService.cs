@@ -36,12 +36,16 @@ public class WeeklyDigestBackgroundService : BackgroundService
                 var tenants = await tenantRepository.GetAllAsync();
                 var utcNow = DateTime.UtcNow;
 
-                // Send digest on Mondays (or any day, simplified to every day for demo)
+                if (utcNow.DayOfWeek != DayOfWeek.Monday)
+                {
+                    continue;
+                }
+
                 foreach (var tenant in tenants)
                 {
-                    if (string.IsNullOrWhiteSpace(tenant.ManagerEmail))
+                    if (!tenant.EmailNotificationsEnabled)
                     {
-                        continue; // Skip tenants without manager email
+                        continue;
                     }
 
                     try

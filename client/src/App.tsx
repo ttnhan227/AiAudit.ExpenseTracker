@@ -21,6 +21,8 @@ import ManagerInsights from "./pages/manager/ManagerInsights.tsx";
 import Settings from "./pages/Settings.tsx";
 import Subscription from "./pages/Subscription.tsx";
 import UserManagement from "./pages/admin/UserManagement.tsx";
+import AdvancedAnalytics from "./pages/analytics/AdvancedAnalytics.tsx";
+import ComplianceHub from "./pages/compliance/ComplianceHub.tsx";
 
 const queryClient = new QueryClient();
 
@@ -118,11 +120,27 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-<Route
+            <Route
                path="/admin/users"
                element={
                  <ProtectedRoute requiredRole={["Owner"]}>
                    <UserManagement />
+                 </ProtectedRoute>
+               }
+             />
+            <Route
+               path="/analytics"
+               element={
+                 <ProtectedRoute requiredRole={["Owner", "Manager"]}>
+                   <AdvancedAnalytics />
+                 </ProtectedRoute>
+               }
+             />
+            <Route
+               path="/compliance"
+               element={
+                 <ProtectedRoute requiredRole={["Owner"]}>
+                   <ComplianceHub />
                  </ProtectedRoute>
                }
              />

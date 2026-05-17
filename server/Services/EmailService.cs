@@ -256,6 +256,18 @@ AiAudit Expense Tracker
 
     public async Task SendWeeklyDigestAsync(Tenant tenant, IReadOnlyList<Expense> pendingExpenses, IReadOnlyList<Expense> highRiskExpenses, string reportUrl)
     {
+        var recipient = tenant.ManagerEmail;
+        if (string.IsNullOrWhiteSpace(recipient))
+        {
+            _logger.LogWarning("No ManagerEmail configured for tenant {TenantId}, skipping weekly digest", tenant.Id);
+            return;
+        }
+
+        await SendWeeklyDigestAsync(tenant, pendingExpenses, highRiskExpenses, reportUrl, recipient);
+    }
+
+    public async Task SendWeeklyDigestAsync(Tenant tenant, IReadOnlyList<Expense> pendingExpenses, IReadOnlyList<Expense> highRiskExpenses, string reportUrl, string recipientEmail)
+    {
         var subject = $"Weekly Expense Digest — {tenant.CompanyName}";
         var totalPending = pendingExpenses.Count;
         var totalHighRisk = highRiskExpenses.Count;
@@ -339,14 +351,13 @@ View full report: {reportUrl}
 AiAudit Expense Tracker
 ";
 
-        var recipient = tenant.ManagerEmail;
-        if (string.IsNullOrWhiteSpace(recipient))
+        if (string.IsNullOrWhiteSpace(recipientEmail))
         {
-            _logger.LogWarning("No ManagerEmail configured for tenant {TenantId}, skipping weekly digest", tenant.Id);
+            _logger.LogWarning("No recipient configured for tenant {TenantId}, skipping weekly digest", tenant.Id);
             return;
         }
 
-        await SendAsync(recipient, subject, htmlBody, plainText);
+        await SendAsync(recipientEmail, subject, htmlBody, plainText);
     }
 
     private static string StripHtml(string html)

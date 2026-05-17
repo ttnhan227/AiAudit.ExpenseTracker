@@ -67,6 +67,9 @@ namespace server.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("numeric");
 
+                    b.Property<decimal>("BaseAmount")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -127,6 +130,57 @@ namespace server.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Expenses");
+                });
+
+            modelBuilder.Entity("Server.Models.ExpenseReviewFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CorrectedRiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("character varying(25)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ExpenseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("OriginalRiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("character varying(25)");
+
+                    b.Property<int>("OriginalRiskScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SubmittedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("WasAutoApproved")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("WasFalsePositive")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpenseId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ExpenseReviewFeedback");
                 });
 
             modelBuilder.Entity("Server.Models.Receipt", b =>
@@ -267,6 +321,13 @@ namespace server.Migrations
                     b.Property<int>("AutoApprovalMinAgeHours")
                         .HasColumnType("integer");
 
+                    b.Property<string>("BaseCurrency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("USD");
+
                     b.Property<string>("CategoryBudgets")
                         .HasColumnType("text");
 
@@ -329,6 +390,18 @@ namespace server.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("ExpenseCardSuspended")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("ExpenseCardSuspendedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExpenseCardSuspensionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("InviteToken")
                         .HasColumnType("text");
 
@@ -343,6 +416,13 @@ namespace server.Migrations
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("PreferredCurrency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("USD");
 
                     b.Property<string>("Role")
                         .IsRequired()
@@ -388,6 +468,17 @@ namespace server.Migrations
                     b.Navigation("Tenant");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Server.Models.ExpenseReviewFeedback", b =>
+                {
+                    b.HasOne("Server.Models.Expense", "Expense")
+                        .WithMany()
+                        .HasForeignKey("ExpenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Expense");
                 });
 
             modelBuilder.Entity("Server.Models.Receipt", b =>

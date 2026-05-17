@@ -1,7 +1,9 @@
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Server.Common;
+using Server.Data;
 using Server.Dtos.Manager;
 using Server.Models;
 using Server.Repositories;
@@ -19,6 +21,7 @@ public sealed class ManagerService : IManagerService
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepository;
     private readonly IBudgetGuardrailService _budgetGuardrailService;
+    private readonly AppDbContext _context;
     private readonly ILogger<ManagerService> _logger;
 
     public ManagerService(
@@ -31,6 +34,7 @@ public sealed class ManagerService : IManagerService
         INotificationService notificationService,
         IUserRepository userRepository,
         IBudgetGuardrailService budgetGuardrailService,
+        AppDbContext context,
         ILogger<ManagerService> logger)
     {
         _expenseRepository = expenseRepository;
@@ -42,6 +46,7 @@ public sealed class ManagerService : IManagerService
         _notificationService = notificationService;
         _userRepository = userRepository;
         _budgetGuardrailService = budgetGuardrailService;
+        _context = context;
         _logger = logger;
     }
 
@@ -56,6 +61,7 @@ public sealed class ManagerService : IManagerService
 
         var tenantExpenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
         var assessments = _riskAssessmentService.EvaluateExpenses(expenses, tenant.MaxSpendLimit, tenantExpenses);
+        assessments = await ApplyLearningAdjustmentsAsync(tenantId, assessments, expenses);
         var prioritized = expenses
             .OrderByDescending(expense => assessments[expense.Id].RiskScore)
             .ThenByDescending(expense => assessments[expense.Id].PolicyTriggers.Length)
@@ -98,6 +104,7 @@ public sealed class ManagerService : IManagerService
         var tenantExpenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
         var auditLogs = await _auditLogRepository.GetTenantAuditLogsAsync(tenantId);
         var assessments = _riskAssessmentService.EvaluateExpenses(tenantExpenses, tenant.MaxSpendLimit, tenantExpenses);
+        assessments = await ApplyLearningAdjustmentsAsync(tenantId, assessments, tenantExpenses);
 
         var approvedCount = tenantExpenses.Count(expense => expense.Status.Equals(ExpenseStatuses.Approved, StringComparison.OrdinalIgnoreCase));
         var rejectedCount = tenantExpenses.Count(expense => expense.Status.Equals(ExpenseStatuses.Rejected, StringComparison.OrdinalIgnoreCase));
@@ -153,6 +160,9 @@ public sealed class ManagerService : IManagerService
 
         var turnaround = BuildTurnaroundInsights(auditLogs);
         var operationalKpis = BuildOperationalKpis(tenantExpenses, auditLogs, assessments);
+        var learningMetrics = await BuildLearningMetricsAsync(tenantId);
+        var policyRecommendations = await BuildPolicyRecommendationsAsync(tenant, tenantExpenses, assessments);
+        var employeeBehaviorInsights = BuildEmployeeBehaviorInsights(tenantExpenses);
         var monthlyHighRiskTrend = BuildMonthlyHighRiskTrend(tenantExpenses, assessments);
         var monthlyPolicyTriggerTrend = BuildMonthlyPolicyTriggerTrend(tenantExpenses, assessments);
 
@@ -163,6 +173,9 @@ public sealed class ManagerService : IManagerService
             highRiskCount,
             turnaround,
             operationalKpis,
+            learningMetrics,
+            policyRecommendations,
+            employeeBehaviorInsights,
             topRejectionReasons,
             highestFlaggedCategories,
             highestFlagRateEmployees,
@@ -234,6 +247,73 @@ public sealed class ManagerService : IManagerService
         return ApiResult.Ok();
     }
 
+    public async Task<ApiResult<ReviewFeedbackResponse>> SubmitReviewFeedbackAsync(Guid id, Guid tenantId, SubmitReviewFeedbackRequest request, string performedBy)
+    {
+        var correctedRiskLevel = NormalizeRiskLevel(request.CorrectedRiskLevel);
+        if (correctedRiskLevel is null)
+        {
+            return ApiResult<ReviewFeedbackResponse>.Fail("Corrected risk level must be Low, Medium, or High.");
+        }
+
+        var expense = await _expenseRepository.GetByIdAsync(id, tenantId);
+        if (expense is null)
+        {
+            return ApiResult<ReviewFeedbackResponse>.Fail("Expense not found.");
+        }
+
+        var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+        if (tenant is null)
+        {
+            return ApiResult<ReviewFeedbackResponse>.Fail("Tenant context is missing.");
+        }
+
+        var tenantExpenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
+        var assessment = _riskAssessmentService.EvaluateExpense(expense, tenant.MaxSpendLimit, tenantExpenses);
+        var auditLogs = await _auditLogRepository.GetByExpenseIdAsync(id);
+        var wasAutoApproved = auditLogs.Any(log =>
+            log.Action.Equals("Approved", StringComparison.OrdinalIgnoreCase)
+            && log.PerformedBy.Equals("Auto-Approval System", StringComparison.OrdinalIgnoreCase));
+
+        var feedback = new ExpenseReviewFeedback
+        {
+            Id = Guid.NewGuid(),
+            ExpenseId = expense.Id,
+            TenantId = tenantId,
+            SubmittedBy = performedBy,
+            OriginalRiskScore = assessment.RiskScore,
+            OriginalRiskLevel = assessment.RiskLevel,
+            CorrectedRiskLevel = correctedRiskLevel,
+            WasFalsePositive = request.WasFalsePositive,
+            WasAutoApproved = wasAutoApproved,
+            Notes = request.Notes,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.ExpenseReviewFeedback.Add(feedback);
+        await _auditLogRepository.AddAsync(new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            ExpenseId = expense.Id,
+            Action = "ReviewFeedbackSubmitted",
+            PerformedBy = performedBy,
+            NewValue = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                feedback.CorrectedRiskLevel,
+                feedback.WasFalsePositive,
+                feedback.WasAutoApproved,
+                feedback.OriginalRiskScore,
+                feedback.OriginalRiskLevel,
+                feedback.Notes
+            }),
+            Notes = "Manager correction recorded for risk learning.",
+            Timestamp = feedback.CreatedAt
+        });
+        await _context.SaveChangesAsync();
+
+        var metrics = await BuildLearningMetricsAsync(tenantId);
+        return ApiResult<ReviewFeedbackResponse>.Ok(new ReviewFeedbackResponse(feedback.Id, feedback.ExpenseId, feedback.CorrectedRiskLevel, feedback.WasFalsePositive, feedback.WasAutoApproved, metrics.CurrentConfidenceScore, feedback.CreatedAt));
+    }
+
     public async Task<ApiResult<IEnumerable<AuditEntryResponse>>> GetAuditTrailAsync(Guid id, Guid tenantId)
     {
         var expense = await _expenseRepository.GetByIdAsync(id, tenantId);
@@ -268,30 +348,26 @@ public async Task<FileContentResult> ExportTenantExpensesAsync(Guid tenantId)
          var expenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
          var csv = new StringBuilder();
 
-         // QuickBooks IIF format header
-         csv.AppendLine("!TRNS\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tMEMO");
-         csv.AppendLine("!SPL\tSPLACCNT\tNAME\tAMOUNT");
-         csv.AppendLine("!ENDTRNS");
+         csv.AppendLine("Date,Payee,ExpenseAccount,Description,Amount,Currency,EmployeeEmail,ExpenseId");
 
          foreach (var expense in expenses)
          {
-             var date = expense.Date.ToString("MM/dd/yyyy");
              var amount = expense.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
-
-             // Main transaction row
-             csv.AppendLine($"TRNS\tEXPENSE\t{date}\tExpenses:{expense.Category}\t{expense.Merchant}\t-{amount}\t{expense.Description ?? expense.Category}");
-
-             // Split row (required by QuickBooks)
-             var splitAccount = "Accounts Payable";
-             csv.AppendLine($"SPL\t{splitAccount}\t{expense.User?.Email ?? "Unknown"}\t{amount}");
-
-             csv.AppendLine("ENDTRNS");
+             csv.AppendLine(string.Join(",",
+                 Csv(expense.Date.ToString("yyyy-MM-dd")),
+                 Csv(expense.Merchant),
+                 Csv($"Expenses:{expense.Category}"),
+                 Csv(expense.Description ?? expense.Category),
+                 amount,
+                 Csv(expense.Currency),
+                 Csv(expense.User?.Email ?? "Unknown"),
+                 Csv(expense.Id.ToString())));
          }
 
          var bytes = Encoding.UTF8.GetBytes(csv.ToString());
          return new FileContentResult(bytes, "text/csv")
          {
-             FileDownloadName = $"quickbooks-export-{DateTime.UtcNow:yyyyMMdd}.iif"
+             FileDownloadName = $"quickbooks-export-{DateTime.UtcNow:yyyyMMdd}.csv"
          };
      }
 
@@ -311,7 +387,19 @@ public async Task<FileContentResult> ExportTenantExpensesAsync(Guid tenantId)
               var accountCode = MapCategoryToAccountCode(expense.Category);
               var description = EscapeValue(expense.Description ?? expense.Merchant);
 
-              csv.AppendLine($"{date},{EscapeValue(contactName)},,,{description},1,{amount},{amount},{expense.Currency ?? "USD"},NONE,0,1");
+              csv.AppendLine(string.Join(",",
+                  Csv(date),
+                  Csv(contactName),
+                  string.Empty,
+                  Csv(accountCode),
+                  Csv(description),
+                  "1",
+                  amount,
+                  amount,
+                  Csv(expense.Currency ?? "USD"),
+                  "NONE",
+                  "0",
+                  "1"));
           }
 
          var bytes = Encoding.UTF8.GetBytes(csv.ToString());
@@ -366,6 +454,16 @@ public async Task<FileContentResult> ExportTenantExpensesAsync(Guid tenantId)
     private static string EscapeValue(string? value)
     {
         return string.IsNullOrEmpty(value) ? string.Empty : value.Replace("\"", "\"\"");
+    }
+
+    private static string Csv(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return $"\"{value.Replace("\"", "\"\"")}\"";
     }
 
     private static bool IsPendingReviewStatus(string status)
@@ -467,11 +565,129 @@ public async Task<FileContentResult> ExportTenantExpensesAsync(Guid tenantId)
             .ToArray();
     }
 
+    private async Task<PolicyRecommendationResponse[]> BuildPolicyRecommendationsAsync(Tenant tenant, IReadOnlyCollection<Expense> tenantExpenses, IReadOnlyDictionary<Guid, RiskEvaluationResult> assessments)
+    {
+        var recommendations = new List<PolicyRecommendationResponse>();
+        var allTenants = await _tenantRepository.GetAllAsync();
+        var similarTenantCount = Math.Max(1, allTenants.Count(candidate =>
+            candidate.Id != tenant.Id
+            && candidate.PlanType.Equals(tenant.PlanType, StringComparison.OrdinalIgnoreCase)));
+
+        var alcoholExpenses = tenantExpenses
+            .Where(expense => expense.Category.Contains("alcohol", StringComparison.OrdinalIgnoreCase)
+                || expense.Category.Contains("wine", StringComparison.OrdinalIgnoreCase)
+                || expense.Category.Contains("beer", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var alcoholOverspend = alcoholExpenses
+            .Where(expense => expense.Amount > 50m)
+            .Sum(expense => expense.Amount - 50m);
+
+        if (alcoholOverspend > 0)
+        {
+            recommendations.Add(new PolicyRecommendationResponse(
+                "Limit alcohol spend to $50",
+                "Set or reinforce a $50 alcohol cap to reduce repeated policy-triggered reimbursements.",
+                decimal.Round(alcoholOverspend, 2),
+                $"{similarTenantCount} similar {tenant.PlanType} tenant(s) are used as the benchmark cohort."));
+        }
+
+        var highestRiskCategory = tenantExpenses
+            .GroupBy(expense => expense.Category)
+            .Select(group =>
+            {
+                var highRiskCount = group.Count(expense => assessments.TryGetValue(expense.Id, out var assessment) && assessment.RiskLevel == "High");
+                var spend = group.Sum(expense => expense.Amount);
+                return new { Category = group.Key, HighRiskCount = highRiskCount, Spend = spend };
+            })
+            .OrderByDescending(item => item.HighRiskCount)
+            .ThenByDescending(item => item.Spend)
+            .FirstOrDefault(item => item.HighRiskCount > 0);
+
+        if (highestRiskCategory is not null)
+        {
+            recommendations.Add(new PolicyRecommendationResponse(
+                $"Tighten {highestRiskCategory.Category} review",
+                $"Require manager pre-approval for {highestRiskCategory.Category.ToLowerInvariant()} claims above the tenant median.",
+                decimal.Round(highestRiskCategory.Spend * 0.12m, 2),
+                $"Benchmark: high-risk categories typically fall after targeted pre-approval rules in similar {tenant.PlanType} tenants."));
+        }
+
+        var nonBaseCurrencyExpenses = tenantExpenses.Where(e => !e.Currency.Equals(tenant.BaseCurrency, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (nonBaseCurrencyExpenses.Count > 0)
+        {
+            var topForeignCurrency = nonBaseCurrencyExpenses.GroupBy(e => e.Currency)
+                .OrderByDescending(g => g.Sum(e => e.BaseAmount))
+                .First();
+
+            var foreignSpend = topForeignCurrency.Sum(e => e.BaseAmount);
+            if (foreignSpend > 5000m) // Arbitrary threshold for suggesting a hedge
+            {
+                var estimatedFxFees = foreignSpend * 0.03m; // Assume 3% average FX fee
+                recommendations.Add(new PolicyRecommendationResponse(
+                    $"Consider hedging or local cards for {topForeignCurrency.Key}",
+                    $"You have significant spend ({foreignSpend:C} {tenant.BaseCurrency}) in {topForeignCurrency.Key}. Consider issuing local currency corporate cards to reduce FX fees.",
+                    decimal.Round(estimatedFxFees, 2),
+                    $"Benchmark: Companies with >$5k international spend typically save ~3% by issuing local cards."
+                ));
+            }
+        }
+
+        if (recommendations.Count == 0)
+        {
+            recommendations.Add(new PolicyRecommendationResponse(
+                "Maintain current policy thresholds",
+                "Current risk and rejection patterns do not show a category-specific savings opportunity yet.",
+                0m,
+                $"Benchmark: tenant is tracking within the expected range for {tenant.PlanType} peers."));
+        }
+
+        return recommendations.Take(3).ToArray();
+    }
+
+    private static EmployeeBehaviorInsightResponse[] BuildEmployeeBehaviorInsights(IReadOnlyCollection<Expense> tenantExpenses)
+    {
+        var insights = new List<EmployeeBehaviorInsightResponse>();
+
+        foreach (var group in tenantExpenses.GroupBy(expense => expense.User?.Email ?? "Unknown employee"))
+        {
+            var fridayLateReceipts = group.Count(expense =>
+                expense.Date.DayOfWeek == DayOfWeek.Friday
+                && expense.CreatedAt > expense.Date.Date.AddDays(2));
+
+            if (fridayLateReceipts >= 2)
+            {
+                insights.Add(new EmployeeBehaviorInsightResponse(
+                    group.Key,
+                    "Travel receipts are often submitted late after Friday expenses.",
+                    "Upload receipts before the weekend to avoid review delays.",
+                    fridayLateReceipts));
+            }
+
+            var missingJustification = group.Count(expense => string.IsNullOrWhiteSpace(expense.Description));
+            if (missingJustification >= 3)
+            {
+                insights.Add(new EmployeeBehaviorInsightResponse(
+                    group.Key,
+                    "Several claims are missing business justification.",
+                    "Add a short business purpose when creating the expense.",
+                    missingJustification));
+            }
+        }
+
+        return insights
+            .OrderByDescending(item => item.SignalCount)
+            .ThenBy(item => item.EmployeeEmail)
+            .Take(5)
+            .ToArray();
+    }
+
     private OperationalKpiInsightResponse BuildOperationalKpis(IEnumerable<Expense> tenantExpenses, IEnumerable<AuditLog> auditLogs, IReadOnlyDictionary<Guid, RiskEvaluationResult> assessments)
     {
         const decimal slaHoursThreshold = 48m;
         var logsByExpense = auditLogs
-            .GroupBy(log => log.ExpenseId)
+            .Where(log => log.ExpenseId.HasValue)
+            .GroupBy(log => log.ExpenseId!.Value)
             .ToDictionary(group => group.Key, group => group.OrderBy(log => log.Timestamp).ToList());
 
         var totalDecisions = 0;
@@ -515,6 +731,112 @@ public async Task<FileContentResult> ExportTenantExpensesAsync(Guid tenantId)
         var escalationRate = expenseCount == 0 ? 0m : decimal.Round((decimal)escalationCount / expenseCount * 100m, 2);
 
         return new OperationalKpiInsightResponse(slaBreachRate, escalationRate, totalDecisions, slaBreachedDecisions, escalationCount);
+    }
+
+    private async Task<LearningMetricsResponse> BuildLearningMetricsAsync(Guid tenantId)
+    {
+        var feedback = await _context.ExpenseReviewFeedback
+            .Where(item => item.TenantId == tenantId)
+            .AsNoTracking()
+            .OrderBy(item => item.CreatedAt)
+            .ToListAsync();
+
+        var feedbackCount = feedback.Count;
+        var falsePositiveCount = feedback.Count(item => item.WasFalsePositive);
+        var autoApprovalFalsePositiveCount = feedback.Count(item => item.WasFalsePositive && item.WasAutoApproved);
+        var falsePositiveRate = feedbackCount == 0 ? 0m : decimal.Round((decimal)falsePositiveCount / feedbackCount * 100m, 2);
+        var currentConfidence = decimal.Round(Math.Max(50m, 95m - falsePositiveRate), 2);
+
+        var midpoint = feedbackCount / 2;
+        var early = midpoint == 0 ? feedback : feedback.Take(midpoint).ToList();
+        var recent = midpoint == 0 ? feedback : feedback.Skip(midpoint).ToList();
+        var earlyConfidence = CalculateConfidenceFromFeedback(early);
+        var recentConfidence = CalculateConfidenceFromFeedback(recent);
+        var trend = decimal.Round(recentConfidence - earlyConfidence, 2);
+
+        return new LearningMetricsResponse(
+            feedbackCount,
+            falsePositiveCount,
+            autoApprovalFalsePositiveCount,
+            falsePositiveRate,
+            currentConfidence,
+            trend);
+    }
+
+    private async Task<Dictionary<Guid, RiskEvaluationResult>> ApplyLearningAdjustmentsAsync(
+        Guid tenantId,
+        Dictionary<Guid, RiskEvaluationResult> assessments,
+        IReadOnlyCollection<Expense> expenses)
+    {
+        var feedback = await _context.ExpenseReviewFeedback
+            .Include(item => item.Expense)
+            .Where(item => item.TenantId == tenantId)
+            .AsNoTracking()
+            .ToListAsync();
+
+        if (feedback.Count == 0)
+        {
+            return assessments;
+        }
+
+        var adjusted = new Dictionary<Guid, RiskEvaluationResult>(assessments);
+        foreach (var expense in expenses)
+        {
+            if (!adjusted.TryGetValue(expense.Id, out var assessment))
+            {
+                continue;
+            }
+
+            var categoryFeedback = feedback
+                .Where(item => item.Expense != null && item.Expense.Category.Equals(expense.Category, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (categoryFeedback.Count == 0)
+            {
+                continue;
+            }
+
+            var falsePositiveCount = categoryFeedback.Count(item => item.WasFalsePositive);
+            var highCorrectionCount = categoryFeedback.Count(item => item.CorrectedRiskLevel.Equals("High", StringComparison.OrdinalIgnoreCase));
+            var scoreAdjustment = Math.Min(falsePositiveCount * 5, 15) - Math.Min(highCorrectionCount * 5, 10);
+
+            if (scoreAdjustment == 0)
+            {
+                continue;
+            }
+
+            var score = Math.Clamp(assessment.RiskScore - scoreAdjustment, 0, 100);
+            var riskLevel = score >= 70 ? "High" : score >= 35 ? "Medium" : "Low";
+            var reasons = assessment.RiskReasons
+                .Where(reason => !reason.StartsWith("Tenant learning adjusted", StringComparison.OrdinalIgnoreCase))
+                .Append(scoreAdjustment > 0
+                    ? $"Tenant learning adjusted score down after {falsePositiveCount} similar manager correction(s)."
+                    : $"Tenant learning adjusted score up after {highCorrectionCount} similar high-risk correction(s).")
+                .ToArray();
+
+            adjusted[expense.Id] = new RiskEvaluationResult(score, riskLevel, reasons, assessment.PolicyTriggers);
+        }
+
+        return adjusted;
+    }
+
+    private static decimal CalculateConfidenceFromFeedback(IReadOnlyCollection<ExpenseReviewFeedback> feedback)
+    {
+        if (feedback.Count == 0)
+        {
+            return 75m;
+        }
+
+        var falsePositiveRate = (decimal)feedback.Count(item => item.WasFalsePositive) / feedback.Count * 100m;
+        return decimal.Round(Math.Max(50m, 95m - falsePositiveRate), 2);
+    }
+
+    private static string? NormalizeRiskLevel(string riskLevel)
+    {
+        if (riskLevel.Equals("Low", StringComparison.OrdinalIgnoreCase)) return "Low";
+        if (riskLevel.Equals("Medium", StringComparison.OrdinalIgnoreCase)) return "Medium";
+        if (riskLevel.Equals("High", StringComparison.OrdinalIgnoreCase)) return "High";
+        return null;
     }
 
     private static decimal CalculateConfidence(List<(DateTime Month, decimal Value)> historicalMonths, decimal dailyAverage, decimal currentMonthTotal)

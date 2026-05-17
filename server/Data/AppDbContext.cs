@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<Receipt> Receipts => Set<Receipt>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<ExpenseReviewFeedback> ExpenseReviewFeedback => Set<ExpenseReviewFeedback>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
 
@@ -26,6 +27,7 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CompanyName).IsRequired();
             entity.Property(e => e.ApiKey).IsRequired();
             entity.Property(e => e.PlanType).IsRequired();
+            entity.Property(e => e.BaseCurrency).HasDefaultValue("USD").HasMaxLength(10).IsRequired();
             entity.HasMany(e => e.Users)
                 .WithOne(u => u.Tenant!)
                 .HasForeignKey(u => u.TenantId)
@@ -43,6 +45,9 @@ public class AppDbContext : DbContext
             entity.Property(e => e.PasswordHash).IsRequired();
             entity.Property(e => e.Role).IsRequired();
             entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.ExpenseCardSuspended).HasDefaultValue(false);
+            entity.Property(e => e.ExpenseCardSuspensionReason).HasMaxLength(500);
+            entity.Property(e => e.PreferredCurrency).HasDefaultValue("USD").HasMaxLength(10).IsRequired();
             entity.HasIndex(e => e.InviteToken).IsUnique();
             entity.HasMany(e => e.Expenses)
                 .WithOne(x => x.User!)
@@ -53,6 +58,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Expense>(entity =>
         {
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.BaseAmount).HasColumnType("numeric");
             entity.Property(e => e.Currency).HasMaxLength(10).IsRequired();
             entity.Property(e => e.Merchant).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Category).HasMaxLength(100).IsRequired();
@@ -69,6 +75,8 @@ public class AppDbContext : DbContext
                 .WithOne(a => a.Expense!)
                 .HasForeignKey(a => a.ExpenseId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.TenantId, e.IsDeleted, e.CreatedAt });
+            entity.HasIndex(e => e.UserId);
             entity.HasQueryFilter(e => !e.IsDeleted);
         });
 
@@ -98,6 +106,23 @@ public class AppDbContext : DbContext
             entity.Property(e => e.PerformedBy).IsRequired();
             entity.Property(e => e.OldValue).HasColumnType("jsonb");
             entity.Property(e => e.NewValue).HasColumnType("jsonb");
+            entity.HasIndex(e => new { e.ExpenseId, e.Timestamp });
+            entity.HasIndex(e => e.PerformedBy);
+        });
+
+        modelBuilder.Entity<ExpenseReviewFeedback>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SubmittedBy).IsRequired();
+            entity.Property(e => e.OriginalRiskLevel).HasMaxLength(25).IsRequired();
+            entity.Property(e => e.CorrectedRiskLevel).HasMaxLength(25).IsRequired();
+            entity.Property(e => e.Notes).HasMaxLength(1000);
+            entity.HasOne(e => e.Expense)
+                .WithMany()
+                .HasForeignKey(e => e.ExpenseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => e.TenantId);
+            entity.HasIndex(e => e.ExpenseId);
         });
 
         modelBuilder.Entity<Subscription>(entity =>

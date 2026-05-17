@@ -60,6 +60,15 @@ public class AuthController : ControllerBase
     }
 
     [Authorize]
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile(UpdateProfileRequest request)
+    {
+        var userId = User.GetUserId();
+        var result = await _authService.UpdateProfileAsync(userId, request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    [Authorize]
     [HttpPut("change-password")]
     public async Task<IActionResult> ChangePassword(ChangePasswordRequest request)
     {

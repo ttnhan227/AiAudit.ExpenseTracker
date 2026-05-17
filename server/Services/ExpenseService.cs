@@ -16,6 +16,7 @@ public sealed class ExpenseService : IExpenseService
     private readonly IUserRepository _userRepository;
     private readonly IBudgetGuardrailService _budgetGuardrailService;
     private readonly ICategoryRulesService _categoryRulesService;
+    private readonly IFxRateService _fxRateService;
 
     public ExpenseService(
         IExpenseRepository expenseRepository,
@@ -26,7 +27,8 @@ public sealed class ExpenseService : IExpenseService
         INotificationService notificationService,
         IUserRepository userRepository,
         IBudgetGuardrailService budgetGuardrailService,
-        ICategoryRulesService categoryRulesService)
+        ICategoryRulesService categoryRulesService,
+        IFxRateService fxRateService)
     {
         _expenseRepository = expenseRepository;
         _tenantRepository = tenantRepository;
@@ -37,6 +39,7 @@ public sealed class ExpenseService : IExpenseService
         _userRepository = userRepository;
         _budgetGuardrailService = budgetGuardrailService;
         _categoryRulesService = categoryRulesService;
+        _fxRateService = fxRateService;
     }
 
     public async Task<ApiResult<IEnumerable<ExpenseResponse>>> GetMyExpensesAsync(Guid tenantId, string role, Guid userId)
@@ -92,10 +95,13 @@ public sealed class ExpenseService : IExpenseService
             return ApiResult<ExpenseResponse>.Fail("Tenant context is missing.");
         }
 
+        var baseAmount = await _fxRateService.ConvertAsync(request.Amount, request.Currency, tenant.BaseCurrency);
+
         var expense = new Expense
         {
             Id = Guid.NewGuid(),
             Amount = request.Amount,
+            BaseAmount = baseAmount,
             Currency = request.Currency,
             Merchant = request.Merchant,
             Category = request.Category,
@@ -151,7 +157,16 @@ public sealed class ExpenseService : IExpenseService
 
         var before = CloneExpense(expense);
 
+        var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+        if (tenant is null)
+        {
+            return ApiResult<ExpenseResponse>.Fail("Tenant context is missing.");
+        }
+
+        var baseAmount = await _fxRateService.ConvertAsync(request.Amount, request.Currency, tenant.BaseCurrency);
+
         expense.Amount = request.Amount;
+        expense.BaseAmount = baseAmount;
         expense.Currency = request.Currency;
         expense.Merchant = request.Merchant;
         expense.Category = request.Category;
@@ -159,7 +174,6 @@ public sealed class ExpenseService : IExpenseService
         expense.Date = DateTime.SpecifyKind(request.Date, DateTimeKind.Utc);
         expense.UpdatedAt = DateTime.UtcNow;
 
-        var tenant = await _tenantRepository.GetByIdAsync(tenantId);
         if (tenant is not null)
         {
             var tenantExpenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
@@ -179,6 +193,62 @@ public sealed class ExpenseService : IExpenseService
 
         var fallbackAssessment = _riskAssessmentService.EvaluateExpense(expense, 0, [ expense ]);
         return ApiResult<ExpenseResponse>.Ok(ToResponse(expense, fallbackAssessment, [ expense ]));
+    }
+
+    public async Task<ApiResult<IEnumerable<ExpenseResponse>>> BulkUpdateExpensesAsync(Guid tenantId, Guid userId, string performedBy, IEnumerable<ExpenseBulkUpdateRequest> requests)
+    {
+        var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+        if (tenant is null)
+        {
+            return ApiResult<IEnumerable<ExpenseResponse>>.Fail("Tenant context is missing.");
+        }
+
+        var tenantExpenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
+        var updatedResponses = new List<ExpenseResponse>();
+
+        foreach (var req in requests)
+        {
+            var expense = await _expenseRepository.GetByIdAsync(req.Id, tenantId);
+            if (expense is null)
+            {
+                return ApiResult<IEnumerable<ExpenseResponse>>.Fail($"Expense {req.Id} not found.");
+            }
+
+            if (expense.UserId != userId)
+            {
+                return ApiResult<IEnumerable<ExpenseResponse>>.Fail($"Forbidden: You do not own expense {req.Id}.");
+            }
+
+            if (!expense.Status.Equals("Draft", StringComparison.OrdinalIgnoreCase))
+            {
+                return ApiResult<IEnumerable<ExpenseResponse>>.Fail($"Only draft expenses may be updated. Expense {expense.Merchant} is {expense.Status}.");
+            }
+
+            var before = CloneExpense(expense);
+            var baseAmount = await _fxRateService.ConvertAsync(req.Amount, req.Currency, tenant.BaseCurrency);
+
+            expense.Amount = req.Amount;
+            expense.BaseAmount = baseAmount;
+            expense.Currency = req.Currency;
+            expense.Merchant = req.Merchant;
+            expense.Category = req.Category;
+            expense.Description = req.Description;
+            expense.Date = DateTime.SpecifyKind(req.Date, DateTimeKind.Utc);
+            expense.UpdatedAt = DateTime.UtcNow;
+
+            var assessment = _riskAssessmentService.EvaluateExpense(expense, tenant.MaxSpendLimit, tenantExpenses);
+            expense.Flagged = assessment.PolicyTriggers.Length > 0;
+            expense.FlagReason = assessment.PolicyTriggers.Length > 0 ? string.Join(" ", assessment.PolicyTriggers) : null;
+            expense.Status = ExpenseStatuses.Draft;
+
+            await _auditLogService.LogExpenseUpdatedAsync(before, expense, performedBy);
+            
+            var visibleExpenses = tenantExpenses.Where(candidate => candidate.UserId == userId).Append(expense).ToList();
+            updatedResponses.Add(ToResponse(expense, assessment, visibleExpenses));
+        }
+
+        await _expenseRepository.SaveChangesAsync();
+        return ApiResult<IEnumerable<ExpenseResponse>>.Ok(updatedResponses);
     }
 
     public async Task<ApiResult<ExpenseResponse>> SubmitExpenseAsync(Guid id, Guid tenantId, Guid userId, string role, string performedBy)
@@ -284,7 +354,7 @@ public sealed class ExpenseService : IExpenseService
         var averageRiskScore = assessments.Count > 0 ? decimal.Round((decimal)assessments.Values.Average(assessment => assessment.RiskScore), 2) : 0m;
         var insights = BuildInsights(expenses);
 
-        return ApiResult<ExpenseStatsResponse>.Ok(new ExpenseStatsResponse(totalSpent, averageSpend, expenseCount, pendingCount, draftCount, highRiskCount, averageRiskScore, insights));
+        return ApiResult<ExpenseStatsResponse>.Ok(new ExpenseStatsResponse(totalSpent, averageSpend, expenseCount, pendingCount, draftCount, highRiskCount, averageRiskScore, 0, insights));
     }
 
     private ExpenseResponse ToResponse(Expense expense, RiskEvaluationResult assessment, IReadOnlyCollection<Expense> tenantExpenses)

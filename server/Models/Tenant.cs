@@ -14,6 +14,7 @@ public class Tenant
     public string PlanType { get; set; } = default!;
     public decimal MaxSpendLimit { get; set; } = 2_000_000m;
     public string? PolicyNotes { get; set; }
+    public string BaseCurrency { get; set; } = "USD";
 
     // Auto-approval defaults
     public bool AutoApprovalEnabled { get; set; } = false;

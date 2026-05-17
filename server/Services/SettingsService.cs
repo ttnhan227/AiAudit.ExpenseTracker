@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Server.Common;
+using Server.Dtos.Budget;
 using Server.Dtos.Settings;
 using Server.Repositories;
 
@@ -8,10 +9,17 @@ namespace Server.Services;
 public sealed class SettingsService : ISettingsService
 {
     private readonly ITenantRepository _tenantRepository;
+    private readonly IExpenseRepository _expenseRepository;
+    private readonly IBudgetGuardrailService _budgetGuardrailService;
 
-    public SettingsService(ITenantRepository tenantRepository)
+    public SettingsService(
+        ITenantRepository tenantRepository,
+        IExpenseRepository expenseRepository,
+        IBudgetGuardrailService budgetGuardrailService)
     {
         _tenantRepository = tenantRepository;
+        _expenseRepository = expenseRepository;
+        _budgetGuardrailService = budgetGuardrailService;
     }
 
     public async Task<ApiResult<CompanySettingsResponse>> GetCompanySettingsAsync(Guid tenantId)
@@ -39,6 +47,38 @@ public sealed class SettingsService : ISettingsService
         await _tenantRepository.SaveChangesAsync();
 
         return ApiResult.Ok();
+    }
+
+    public async Task<ApiResult<List<CategoryBudget>>> GetCategoryBudgetsAsync(Guid tenantId)
+    {
+        var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+        if (tenant is null)
+        {
+            return ApiResult<List<CategoryBudget>>.Fail("Tenant not found.");
+        }
+
+        var expenses = await _expenseRepository.GetTenantExpensesAsync(tenantId);
+        var categorySpending = expenses
+            .GroupBy(expense => expense.Category, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.Sum(expense => expense.Amount), StringComparer.OrdinalIgnoreCase);
+        var budgets = await _budgetGuardrailService.GetCategoryBudgetsAsync(tenant, categorySpending);
+
+        return ApiResult<List<CategoryBudget>>.Ok(budgets);
+    }
+
+    public async Task<ApiResult> UpdateCategoryBudgetsAsync(Guid tenantId, UpdateCategoryBudgetsRequest request)
+    {
+        var tenant = await _tenantRepository.GetByIdAsync(tenantId);
+        if (tenant is null)
+        {
+            return ApiResult.Fail("Tenant not found.");
+        }
+
+        var cleanedBudgets = request.Budgets
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key) && item.Value > 0)
+            .ToDictionary(item => item.Key.Trim(), item => item.Value, StringComparer.OrdinalIgnoreCase);
+
+        return await _budgetGuardrailService.SetCategoryBudgetsAsync(tenant, cleanedBudgets);
     }
 
     public async Task<ApiResult<AutoApprovalRulesResponse>> GetAutoApprovalRulesAsync(Guid tenantId)
@@ -117,10 +157,16 @@ var response = new NotificationSettingsResponse(
 
         tenant.EmailNotificationsEnabled = request.EmailNotificationsEnabled;
         tenant.SlackNotificationsEnabled = request.SlackNotificationsEnabled;
-        tenant.SlackWebhookUrl = request.SlackWebhookUrl;
+        if (request.SlackWebhookUrl is not null)
+        {
+            tenant.SlackWebhookUrl = string.IsNullOrWhiteSpace(request.SlackWebhookUrl) ? null : request.SlackWebhookUrl;
+        }
         tenant.SlackChannel = request.SlackChannel;
         tenant.SlackTeamId = request.SlackTeamId;
-        tenant.SlackUserEmailMappings = request.SlackUserEmailMappings;
+        if (request.SlackUserEmailMappings is not null)
+        {
+            tenant.SlackUserEmailMappings = string.IsNullOrWhiteSpace(request.SlackUserEmailMappings) ? null : request.SlackUserEmailMappings;
+        }
         tenant.ManagerEmail = request.ManagerEmail;
         tenant.NoReplyEmail = request.NoReplyEmail;
 

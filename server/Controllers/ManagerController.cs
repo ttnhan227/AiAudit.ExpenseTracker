@@ -62,6 +62,20 @@ public class ManagerController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("feedback/{id}")]
+    public async Task<IActionResult> SubmitReviewFeedback(Guid id, SubmitReviewFeedbackRequest request)
+    {
+        var tenantId = User.GetTenantId();
+        var performedBy = User.GetUserEmail();
+        var result = await _managerService.SubmitReviewFeedbackAsync(id, tenantId, request, performedBy);
+        if (!result.Success)
+        {
+            return result.Error == "Expense not found." ? NotFound(result) : BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
     [HttpGet("audit-trail/{id}")]
     public async Task<IActionResult> AuditTrail(Guid id)
     {

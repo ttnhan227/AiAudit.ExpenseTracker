@@ -49,6 +49,16 @@ public sealed class ExpenseRepository : IExpenseRepository
             .ToListAsync();
     }
 
+    public Task<List<Expense>> GetPendingExpensesForUpdateAsync(Guid tenantId)
+    {
+        return _context.Expenses
+            .Where(e => e.TenantId == tenantId && (e.Status == ExpenseStatuses.Pending || e.Status == "Submitted"))
+            .Include(e => e.Receipts)
+            .Include(e => e.User)
+            .OrderByDescending(e => e.CreatedAt)
+            .ToListAsync();
+    }
+
     public Task<List<Expense>> GetTenantExpensesAsync(Guid tenantId)
     {
         return _context.Expenses

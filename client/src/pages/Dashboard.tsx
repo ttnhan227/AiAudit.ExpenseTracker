@@ -37,6 +37,8 @@ import {
   Calendar,
   Brain,
   Target,
+  ShieldCheck,
+  Zap
 } from "lucide-react";
 
 const Dashboard = () => {
@@ -46,9 +48,9 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [auditInsights, setAuditInsights] = useState<AuditInsight | null>(null);
   const [budgetPrediction, setBudgetPrediction] = useState<BudgetPrediction | null>(null);
-   const isManager = user?.role === "Manager" || user?.role === "Owner";
-    const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
-    const canAccessSubscription = user?.role === "Owner" || user?.role === "Member";
+  const isManager = user?.role === "Manager" || user?.role === "Owner";
+  const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
+  const canAccessSubscription = user?.role === "Owner" || user?.role === "Member";
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -106,7 +108,7 @@ const Dashboard = () => {
     );
   }
 
-  const COLORS = ["#98d8c8", "#6ecdc1", "#52b6a0", "#3a8b7d", "#23675d"];
+  const COLORS = ["#10b981", "#06b6d4", "#6366f1", "#a855f7", "#ec4899"];
 
   const categoryData = stats?.insights.topCategories || [];
   const chartData = [
@@ -123,217 +125,235 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="rounded-[2rem] border border-border/60 bg-card/80 p-6 shadow-sm backdrop-blur">
-          <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Overview</p>
-          <h1 className="mt-2 text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="mt-1 text-muted-foreground">Governance view for {user?.email} with risk, trend, and review priorities.</p>
+      <div className="space-y-6">
+        {/* Top Header Card */}
+        <div className="rounded-3xl border border-border bg-card/65 p-6 shadow-xl backdrop-blur-md">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-mono tracking-[0.28em] text-primary bg-primary/5 px-2 py-0.5 border border-primary/10 rounded">
+                  System Overview
+                </span>
+                <span className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded border border-border">
+                  <ShieldCheck className="h-3 w-3 text-primary animate-pulse" />
+                  AI Auditor Safeguard Enabled
+                </span>
+              </div>
+              <h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1>
+              <p className="text-sm text-muted-foreground">
+                Welcome back! View your expense stats, compliance levels, and policy alerts.
+              </p>
+            </div>
+            <div className="font-mono text-xs text-muted-foreground flex items-center gap-2 bg-muted border border-border px-3 py-1.5 rounded-2xl">
+              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+              <span>AI System: Online</span>
+            </div>
+          </div>
         </div>
 
-        {/* Subscription Widget */}
+        {/* Subscription Banner */}
         {canAccessSubscription && subscription && (
-          <Card className={`rounded-[2rem] bg-gradient-to-br shadow-sm backdrop-blur border ${
+          <div className={`rounded-2xl border bg-card/45 backdrop-blur-md px-5 py-3 shadow-md ${
             subscription.status === "active" 
-              ? "border-primary/20 from-primary/5 to-primary/2" 
-              : "border-destructive/20 from-destructive/5 to-destructive/2"
+              ? "border-primary/25" 
+              : "border-destructive/25"
           }`}>
-            <CardContent className="flex items-center justify-between pt-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <CreditCard className="h-6 w-6 text-primary" />
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
+                  <CreditCard className="h-4 w-4 text-primary" />
                 </div>
-                <div>
-                  <p className="font-medium text-foreground">{subscription.planName} Plan</p>
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    <Calendar className="h-3 w-3" />
-                    Renews {new Date(subscription.renewalDate!).toLocaleDateString()}
-                  </p>
-                </div>
+                <span className="font-bold text-foreground">
+                  {subscription.planName.toUpperCase()} PLAN ACTIVE
+                </span>
+                <span className="text-border">|</span>
+                <span className="text-muted-foreground flex items-center gap-1.5 font-mono">
+                  <Calendar className="h-3.5 w-3.5" />
+                  Renews {new Date(subscription.renewalDate!).toLocaleDateString()}
+                </span>
               </div>
-              <Button asChild variant="outline" className="rounded-full">
-                <Link to="/subscription">Manage Subscription</Link>
+              <Button asChild variant="ghost" className="h-7 rounded-full text-xs text-primary hover:text-primary/95 hover:bg-primary/5 px-3">
+                <Link to="/subscription">Manage Subscription →</Link>
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
-        {canAccessSubscription && !subscription && (
-          <Card className="rounded-[2rem] border-dashed border-border/60 bg-card/50 shadow-sm">
-            <CardContent className="flex items-center justify-between pt-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                  <CreditCard className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium text-foreground">No Active Subscription</p>
-                  <p className="text-sm text-muted-foreground">Choose a plan to unlock premium features</p>
-                </div>
-              </div>
-              <Button asChild className="rounded-full bg-primary hover:bg-primary/90">
-                <Link to="/subscription">Choose Plan</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Quick Actions */}
+        {/* Quick Actions Panel */}
         {canUseSubmitterFeatures && (
-          <div className="grid gap-4 md:grid-cols-2">
-            <Button asChild size="lg" className="gap-2">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Button asChild size="lg" className="rounded-2xl gap-2 font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md py-6">
               <Link to="/expenses/create">
                 <Plus className="h-5 w-5" />
-                New Expense
+                Create New Expense
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="gap-2">
+            <Button asChild size="lg" variant="outline" className="rounded-2xl gap-2 border-border bg-card text-foreground hover:bg-muted py-6">
               <Link to="/upload">
                 <Upload className="h-5 w-5" />
-                Upload Receipt
+                Upload Receipt Image
               </Link>
             </Button>
           </div>
         )}
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Spending</CardTitle>
+        {/* Five Stat Grid Matrix */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/20">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Spending</CardTitle>
               <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats?.totalSpent || 0)}</div>
-              <p className="text-xs text-muted-foreground">
-                Across {stats?.expenseCount || 0} expenses
+            <CardContent className="pt-3">
+              <div className="text-xl font-bold text-foreground font-mono">{formatCurrency(stats?.totalSpent || 0)}</div>
+              <p className="text-[10px] text-muted-foreground mt-1 uppercase">
+                {stats?.expenseCount || 0} expenses logged
               </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Average Spend</CardTitle>
-              <TrendingUp className="h-4 w-4 text-primary" />
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/20">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Auto-Approved</CardTitle>
+              <ShieldCheck className="h-4 w-4 text-primary" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(stats?.averageSpend || 0)}</div>
-              <p className="text-xs text-muted-foreground">Per expense</p>
+            <CardContent className="pt-3">
+              <div className="text-xl font-bold text-foreground font-mono">{stats?.autoApprovedCount || 0}</div>
+              <p className="text-[10px] text-primary mt-1 uppercase">
+                Cleared by AI Guardrails
+              </p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
-              <Clock className="h-4 w-4 text-secondary-foreground" />
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/20">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Average Spend</CardTitle>
+              <TrendingUp className="h-4 w-4 text-cyan-500" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.pendingCount || 0}</div>
-              <p className="text-xs text-muted-foreground">Awaiting approval</p>
+            <CardContent className="pt-3">
+              <div className="text-xl font-bold text-foreground font-mono">{formatCurrency(stats?.averageSpend || 0)}</div>
+              <p className="text-[10px] text-muted-foreground mt-1 uppercase">Per expense</p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">High Risk</CardTitle>
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/20">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Pending Review</CardTitle>
+              <Clock className="h-4 w-4 text-amber-500" />
+            </CardHeader>
+            <CardContent className="pt-3">
+              <div className="text-xl font-bold text-foreground font-mono">{stats?.pendingCount || 0}</div>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 uppercase">Awaiting approval</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-muted/20">
+              <CardTitle className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">High Risk Claims</CardTitle>
               <AlertCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.highRiskCount || 0}</div>
-              <p className="text-xs text-muted-foreground">
-                Avg score: {Math.round(stats?.averageRiskScore || 0)}
+            <CardContent className="pt-3">
+              <div className="text-xl font-bold text-foreground font-mono">{stats?.highRiskCount || 0}</div>
+              <p className="text-[10px] text-destructive mt-1 uppercase font-mono">
+                Avg score: {Math.round(stats?.averageRiskScore || 0)}%
               </p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Budget Prediction - Managers Only */}
+        {/* AI Budget Forecast - Managers/Owners Only */}
         {isManager && budgetPrediction && (
-          <Card className={`rounded-[2rem] bg-gradient-to-br shadow-sm backdrop-blur border ${
-            budgetPrediction.healthStatus === "Healthy"
-              ? "border-primary/20 from-primary/5 to-primary/2"
-              : budgetPrediction.healthStatus === "Warning"
-              ? "border-secondary/20 from-secondary/5 to-secondary/2"
-              : "border-destructive/20 from-destructive/5 to-destructive/2"
-          }`}>
-            <CardHeader>
+          <Card className="rounded-3xl bg-card/65 border border-border shadow-xl backdrop-blur-md overflow-hidden">
+            <CardHeader className="border-b border-border bg-muted/20">
               <div className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-primary" />
-                <CardTitle>AI Budget Forecast</CardTitle>
+                <Brain className="h-5 w-5 text-primary animate-pulse" />
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">
+                  AI Budget Guardrails Forecast
+                </CardTitle>
               </div>
-              <CardDescription>Predicted month-end spending with confidence</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-end justify-between">
+            <CardContent className="space-y-5 pt-4">
+              <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <p className="text-3xl font-bold">{formatCurrency(budgetPrediction.predictedMonthTotal)}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {budgetPrediction.daysRemaining} days remaining
+                  <span className="text-[10px] text-muted-foreground uppercase">Projected Month-End Spend</span>
+                  <p className="text-3xl font-black text-foreground font-mono">{formatCurrency(budgetPrediction.predictedMonthTotal)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Based on {budgetPrediction.daysRemaining} days remaining this month
                   </p>
                 </div>
-                <Badge variant={
-                  budgetPrediction.healthStatus === "Healthy" ? "default" :
-                  budgetPrediction.healthStatus === "Warning" ? "secondary" : "destructive"
-                } className="text-sm">
-                  {budgetPrediction.healthStatus}
+                <Badge 
+                  variant="outline"
+                  className={`text-xs px-3 py-1 font-bold rounded-xl border ${
+                    budgetPrediction.healthStatus === "Healthy" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" :
+                    budgetPrediction.healthStatus === "Warning" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" : 
+                    "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 shadow-sm"
+                  }`}
+                >
+                  Budget health: {budgetPrediction.healthStatus.toUpperCase()}
                 </Badge>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Confidence</span>
-                  <span>{budgetPrediction.confidencePercentage}%</span>
+
+              <div className="space-y-2 bg-muted/20 border border-border p-4 rounded-2xl">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-muted-foreground">Confidence Score:</span>
+                  <span className="text-primary font-mono">{budgetPrediction.confidencePercentage}% confidence</span>
                 </div>
-                <Progress value={budgetPrediction.confidencePercentage} className="h-2" />
+                <Progress value={budgetPrediction.confidencePercentage} className="h-1.5" />
               </div>
-              <div className="text-sm text-muted-foreground">
-                {budgetPrediction.variancePercentage > 0 ? (
-                  <span className="text-destructive">
-                    +{budgetPrediction.variancePercentage}% vs historical average
-                  </span>
-                ) : (
-                  <span className="text-primary">
-                    {budgetPrediction.variancePercentage}% vs historical average
-                  </span>
-                )}
-              </div>
+
+              {budgetPrediction.categoryPredictions.length > 0 && (
+                <div className="grid gap-3 pt-2 border-t border-border sm:grid-cols-3">
+                  {budgetPrediction.categoryPredictions.slice(0, 3).map((prediction) => (
+                    <div key={prediction.category} className="bg-muted/30 border border-border rounded-xl p-3 text-xs">
+                      <p className="font-bold text-foreground uppercase tracking-wider">{prediction.category}</p>
+                      <div className="flex items-center justify-between mt-2 font-mono">
+                        <span className="text-muted-foreground">Projected:</span>
+                        <span className={prediction.willExceedBudget ? "text-destructive font-extrabold" : "text-primary font-semibold"}>
+                          {prediction.predictedUsagePercentage}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
 
-        {/* Charts */}
+        {/* Charts & Trends */}
         <div className="grid gap-4 lg:grid-cols-2">
           {/* Monthly Comparison */}
-          <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-            <CardHeader>
-              <CardTitle>Monthly Comparison</CardTitle>
-              <CardDescription>Current and previous month spending</CardDescription>
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+            <CardHeader className="border-b border-border bg-muted/20 px-6 py-4">
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">Monthly Trend Comparison</CardTitle>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+            <CardContent className="pt-6">
+              <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
-                  <YAxis stroke="hsl(var(--muted-foreground))" />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
+                      backgroundColor: "hsl(var(--popover))",
                       border: "1px solid hsl(var(--border))",
+                      color: "hsl(var(--popover-foreground))",
                     }}
                   />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Category Distribution */}
+          {/* Sector Aggregations */}
           {categoryData.length > 0 && (
-            <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-              <CardHeader>
-                <CardTitle>Top Categories</CardTitle>
-                <CardDescription>By spending amount</CardDescription>
+            <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+              <CardHeader className="border-b border-border bg-muted/20 px-6 py-4">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">Spending by Category</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+              <CardContent className="pt-6">
+                <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
                     <Pie
                       data={categoryData}
@@ -343,15 +363,21 @@ const Dashboard = () => {
                       label={({ category, totalSpent }) =>
                         `${category}: ${Math.round((totalSpent / (stats?.totalSpent || 1)) * 100)}%`
                       }
-                      outerRadius={80}
-                      fill="#8884d8"
+                      outerRadius={75}
+                      fill="hsl(var(--primary))"
                       dataKey="totalSpent"
                     >
                       {categoryData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--popover))",
+                        border: "1px solid hsl(var(--border))",
+                        color: "hsl(var(--popover-foreground))",
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -359,95 +385,108 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Insights */}
-        <Card className="rounded-[2rem] border-border/60 bg-secondary/35 shadow-sm backdrop-blur">
-          <CardHeader>
-            <CardTitle>Month-over-Month Change</CardTitle>
+        {/* Change stats */}
+        <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+          <CardHeader className="bg-muted/20 px-6 py-4 border-b border-border">
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Month-over-Month Growth Details
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Amount Change</span>
+          <CardContent className="flex flex-wrap gap-6 pt-4 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-muted-foreground uppercase">Change Amount:</span>
               <Badge
-                variant={
-                  (stats?.insights.changeAmount || 0) > 0 ? "destructive" : "secondary"
-                }
+                variant="outline"
+                className={`font-mono text-xs rounded border ${
+                  (stats?.insights.changeAmount || 0) > 0 
+                    ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20" 
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                }`}
               >
-                {stats?.insights.changeAmount ? formatCurrency(stats.insights.changeAmount) : "0"}
+                {stats?.insights.changeAmount && stats.insights.changeAmount > 0 ? "+" : ""}
+                {stats?.insights.changeAmount ? formatCurrency(stats.insights.changeAmount) : "$0.00"}
               </Badge>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Percentage Change</span>
-              <Badge variant={(stats?.insights.changePercentage || 0) > 0 ? "destructive" : "secondary"}>
+            <div className="flex items-center gap-3">
+              <span className="text-muted-foreground uppercase">Change Percentage:</span>
+              <Badge 
+                variant="outline"
+                className={`font-mono text-xs rounded border ${
+                  (stats?.insights.changePercentage || 0) > 0 
+                    ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20" 
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                }`}
+              >
+                {stats?.insights.changePercentage && stats.insights.changePercentage > 0 ? "+" : ""}
                 {Math.round((stats?.insights.changePercentage || 0) * 100) / 100}%
               </Badge>
             </div>
           </CardContent>
         </Card>
 
-        {/* Quick Links for Managers */}
+        {/* Manager tools */}
         {isManager && (
-          <Card className="rounded-[2rem] border-border/60 bg-primary/5 shadow-sm backdrop-blur">
-            <CardHeader>
-              <CardTitle>Decision Support Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="flex gap-4">
-              <Button asChild variant="outline">
+          <div className="rounded-3xl border border-border bg-card/65 p-4 shadow-xl backdrop-blur-md flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              <Zap className="h-4 w-4 text-primary animate-pulse" />
+              <span className="text-muted-foreground uppercase font-bold">Manager Review Portals Available</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" className="rounded-full text-xs border-border hover:bg-muted text-foreground">
                 <Link to="/manager/pending">Review Pending Expenses</Link>
               </Button>
-              <Button asChild variant="outline">
-                <Link to="/manager/insights">View Audit Insights</Link>
+              <Button asChild variant="outline" className="rounded-full text-xs border-border hover:bg-muted text-foreground">
+                <Link to="/manager/insights">View AI Policy Logs</Link>
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
 
         {/* Anomaly Trend — managers only */}
         {isManager && auditInsights && (
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-              <CardHeader>
+            <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+              <CardHeader className="border-b border-border bg-muted/20 px-6 py-4">
                 <div className="flex items-center gap-2">
-                  <ShieldAlert className="h-4 w-4 text-destructive" />
-                  <CardTitle>High-Risk Trend</CardTitle>
+                  <ShieldAlert className="h-4 w-4 text-destructive animate-pulse" />
+                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">High Risk Claims Trend</CardTitle>
                 </div>
-                <CardDescription>Monthly high-risk claim volume over last 6 months</CardDescription>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={240}>
+              <CardContent className="pt-6 font-mono">
+                <ResponsiveContainer width="100%" height={230}>
                   <LineChart data={auditInsights.monthlyHighRiskTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="monthLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
+                    <XAxis dataKey="monthLabel" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" allowDecimals={false} tick={{ fontSize: 10 }} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))" }}
+                      contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", color: "hsl(var(--popover-foreground))" }}
                     />
                     <Legend />
-                    <Line type="monotone" dataKey="highRiskCount" name="High-Risk" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="reviewedCount" name="Reviewed" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="highRiskCount" name="Flagged Risk" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="reviewedCount" name="Cleared Log" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-            <Card className="rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-              <CardHeader>
-                <CardTitle>Top Flagged Categories</CardTitle>
-                <CardDescription>Categories by flag rate across your organization</CardDescription>
+            <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden">
+              <CardHeader className="border-b border-border bg-muted/20 px-6 py-4">
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">Flag Rates by Category</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 {auditInsights.highestFlaggedCategories.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-6 text-center">No flagged categories yet.</p>
+                  <p className="text-xs text-muted-foreground py-10 text-center uppercase">Zero risk incidents reported.</p>
                 ) : (
-                  <div className="space-y-3 pt-1">
+                  <div className="space-y-4">
                     {auditInsights.highestFlaggedCategories.map((cat) => (
-                      <div key={cat.category}>
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="font-medium">{cat.category}</span>
-                          <span className="text-muted-foreground">{cat.flaggedCount}/{cat.expenseCount} · {cat.flagRate}%</span>
+                      <div key={cat.category} className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-foreground uppercase">{cat.category}</span>
+                          <span className="text-muted-foreground">{cat.flaggedCount}/{cat.expenseCount} flagged · <span className="text-destructive font-extrabold font-mono">{cat.flagRate}%</span></span>
                         </div>
-                        <div className="h-2 rounded-full bg-secondary/50 overflow-hidden">
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden border border-border">
                           <div
-                            className="h-full rounded-full bg-destructive/70"
+                            className="h-full rounded-full bg-gradient-to-r from-red-600 to-red-400"
                             style={{ width: `${Math.min(cat.flagRate, 100)}%` }}
                           />
                         </div>

@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2, ArrowLeft } from "lucide-react";
+import { AlertCircle, Loader2, ArrowLeft, ShieldAlert } from "lucide-react";
 
 const CATEGORIES = [
   "Travel",
@@ -92,16 +92,18 @@ const CreateExpense = () => {
     const amount = parseFloat(formData.amount || "0");
     const signals: string[] = [];
 
-    if (amount >= 2_000_000) {
-      signals.push("Large amount: this likely enters mandatory manager review.");
+    if (amount >= 2_000_000 && formData.currency === "VND") {
+      signals.push("VND amount exceeds 2,000,000. Will require manager signature.");
+    } else if (amount >= 100 && formData.currency === "USD") {
+      signals.push("USD amount exceeds $100. Will require manager signature.");
     }
 
     if (formData.category.toLowerCase().includes("alcohol")) {
-      signals.push("Restricted category detected: this may trigger a policy violation.");
+      signals.push("Restricted category (Alcohol) triggers strict policy compliance check.");
     }
 
     if (!formData.description.trim()) {
-      signals.push("Missing business justification increases risk and slows approvals.");
+      signals.push("Please add a business purpose description to speed up review approvals.");
     }
 
     return signals;
@@ -130,7 +132,6 @@ const CreateExpense = () => {
 
       if (result.success && result.data) {
         if (!saveDraft) {
-          // If not saving as draft, submit the expense
           const submitResult = await expenseService.submit(result.data.id);
           if (submitResult.success) {
             navigate(`/expenses/${result.data.id}`);
@@ -150,71 +151,78 @@ const CreateExpense = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 rounded-[2rem] border border-border/60 bg-card/80 p-6 shadow-sm backdrop-blur">
+      <div className="space-y-6 font-sans">
+        {/* Header Ribbon - matches list & dashboard */}
+        <div className="flex items-center gap-4 rounded-3xl border border-border bg-card/65 p-6 shadow-xl backdrop-blur-md">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate("/expenses")}
+            className="rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">Capture</p>
-            <h1 className="mt-2 text-3xl font-bold text-foreground">Create Expense</h1>
-            <p className="mt-1 text-muted-foreground">Add a new expense and submit it for review.</p>
+            <span className="text-[10px] font-mono tracking-[0.28em] text-primary bg-primary/5 px-2 py-0.5 border border-primary/10 rounded uppercase">
+              Capture Claims
+            </span>
+            <h1 className="text-3xl font-extrabold tracking-tight mt-1.5">New Expense</h1>
+            <p className="text-sm text-muted-foreground">Add a new expense log and submit it to review channels.</p>
           </div>
         </div>
 
+        {/* Side-by-side Live Guides */}
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="rounded-[2rem] border-border/60 bg-card/80 shadow-sm backdrop-blur">
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md">
             <CardHeader>
-              <CardTitle className="text-base">Policy Guardrails</CardTitle>
-              <CardDescription>What reviewers and controls will validate</CardDescription>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">Compliance Guardrails</CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">Company spend policies and limits</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p>Amount above 2,000,000 VND is treated as elevated risk.</p>
-              <p>Alcohol and restricted categories trigger policy checks.</p>
-              <p>Strong description and receipt evidence reduce manual escalations.</p>
+            <CardContent className="space-y-2 text-xs text-muted-foreground">
+              <p>• Meal and accommodation records above $100 (or 2M VND) trigger manager oversight.</p>
+              <p>• Alcohol claims are flagged automatically for rigorous justification.</p>
+              <p>• Adding high-resolution receipts and descriptions speeds up approval times by 85%.</p>
             </CardContent>
           </Card>
 
-          <Card className="rounded-[2rem] border-border/60 bg-secondary/30 shadow-sm backdrop-blur">
-            <CardHeader>
-              <CardTitle className="text-base">Pre-Submit Risk Preview</CardTitle>
-              <CardDescription>Live signals based on your current form</CardDescription>
+          <Card className="rounded-3xl border border-border bg-secondary/20 shadow-xl backdrop-blur-md">
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0">
+              <ShieldAlert className="h-4.5 w-4.5 text-primary" />
+              <div>
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-foreground">Real-Time Policy Check</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">Live guidance as you type</CardDescription>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
+            <CardContent className="space-y-2 text-xs">
               {previewSignals.length === 0 ? (
-                <p className="text-muted-foreground">No obvious policy concerns detected yet.</p>
+                <p className="text-primary font-semibold">✓ Looking good! All inputs align with current company policies.</p>
               ) : (
-                previewSignals.map((signal) => (
-                  <p key={signal} className="text-foreground">• {signal}</p>
+                previewSignals.map((signal, idx) => (
+                  <p key={idx} className="text-muted-foreground font-medium">• {signal}</p>
                 ))
               )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Form */}
-        <Card className="max-w-3xl rounded-[2rem] border-border/60 bg-card/85 shadow-sm backdrop-blur">
-          <CardHeader>
-            <CardTitle>Expense Details</CardTitle>
-            <CardDescription>Fill in the expense information below</CardDescription>
+        {/* Main Form */}
+        <Card className="max-w-3xl rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md">
+          <CardHeader className="border-b border-border bg-muted/20 px-6 py-4">
+            <CardTitle className="text-foreground text-base font-bold tracking-tight">Expense Fields</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">Fill in the required transaction information below</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6">
             <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-6">
               {error && (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="rounded-xl">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
+                  <AlertDescription className="text-xs font-medium">{error}</AlertDescription>
                 </Alert>
               )}
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount *</Label>
+                  <Label htmlFor="amount" className="text-xs font-semibold text-muted-foreground uppercase">Amount *</Label>
                   <Input
                     id="amount"
                     type="number"
@@ -224,20 +232,20 @@ const CreateExpense = () => {
                     value={formData.amount}
                     onChange={handleChange}
                     disabled={isLoading}
-                    className="border-border/50"
+                    className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10 font-mono"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="currency">Currency *</Label>
+                  <Label htmlFor="currency" className="text-xs font-semibold text-muted-foreground uppercase">Currency *</Label>
                   <Select
                     value={formData.currency}
                     onValueChange={(value) => handleSelectChange("currency", value)}
                   >
-                    <SelectTrigger disabled={isLoading}>
+                    <SelectTrigger disabled={isLoading} className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10 font-mono">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover border border-border text-xs text-popover-foreground font-mono">
                       <SelectItem value="USD">USD</SelectItem>
                       <SelectItem value="VND">VND</SelectItem>
                       <SelectItem value="EUR">EUR</SelectItem>
@@ -247,7 +255,7 @@ const CreateExpense = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="merchant">Merchant *</Label>
+                <Label htmlFor="merchant" className="text-xs font-semibold text-muted-foreground uppercase">Merchant / Vendor *</Label>
                 <Input
                   id="merchant"
                   placeholder="e.g., Starbucks, Uber, Hotel ABC"
@@ -255,21 +263,21 @@ const CreateExpense = () => {
                   value={formData.merchant}
                   onChange={handleChange}
                   disabled={isLoading}
-                  className="border-border/50"
+                  className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10"
                 />
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category *</Label>
+                  <Label htmlFor="category" className="text-xs font-semibold text-muted-foreground uppercase">Category *</Label>
                   <Select
                     value={formData.category}
                     onValueChange={(value) => handleSelectChange("category", value)}
                   >
-                    <SelectTrigger disabled={isLoading}>
+                    <SelectTrigger disabled={isLoading} className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10">
                       <SelectValue placeholder="Select a category" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover border border-border text-xs text-popover-foreground">
                       {CATEGORIES.map((cat) => (
                         <SelectItem key={cat} value={cat}>
                           {cat}
@@ -280,7 +288,7 @@ const CreateExpense = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="date">Date *</Label>
+                  <Label htmlFor="date" className="text-xs font-semibold text-muted-foreground uppercase">Transaction Date *</Label>
                   <Input
                     id="date"
                     type="date"
@@ -288,31 +296,31 @@ const CreateExpense = () => {
                     value={formData.date}
                     onChange={handleChange}
                     disabled={isLoading}
-                    className="border-border/50"
+                    className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10 font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
+                <Label htmlFor="description" className="text-xs font-semibold text-muted-foreground uppercase">Business Purpose / Description</Label>
                 <Textarea
                   id="description"
-                  placeholder="Add any additional details about this expense"
+                  placeholder="Explain why this expense was made (e.g. lunch with client, software renewal)"
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
                   disabled={isLoading}
-                  className="border-border/50"
+                  className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 min-h-[100px]"
                   rows={4}
                 />
               </div>
 
-              {/* Buttons */}
-              <div className="flex flex-wrap gap-3 pt-4">
+              {/* Action Control Buttons */}
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="gap-2 rounded-full px-6"
+                  className="gap-2 rounded-full px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md"
                 >
                   {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                   Submit Expense
@@ -322,7 +330,7 @@ const CreateExpense = () => {
                   variant="outline"
                   disabled={isLoading}
                   onClick={(e) => handleSubmit(e, true)}
-                  className="gap-2 rounded-full px-6"
+                  className="gap-2 rounded-full px-6 border-border hover:bg-muted text-foreground font-medium"
                 >
                   Save as Draft
                 </Button>
@@ -331,7 +339,7 @@ const CreateExpense = () => {
                   variant="ghost"
                   disabled={isLoading}
                   onClick={() => navigate("/expenses")}
-                  className="rounded-full px-6"
+                  className="rounded-full px-6 text-muted-foreground hover:text-foreground font-medium"
                 >
                   Cancel
                 </Button>

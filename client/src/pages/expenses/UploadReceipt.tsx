@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2, Upload, ArrowLeft, Check } from "lucide-react";
+import { AlertCircle, Loader2, Upload, ArrowLeft, Check, Sparkles } from "lucide-react";
 
 const CATEGORIES = [
   "Travel",
@@ -61,7 +61,6 @@ const UploadReceipt = () => {
   const [receiptPreviewUrl, setReceiptPreviewUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form data for review/confirm
   const [formData, setFormData] = useState({
     amount: "",
     currency: "USD",
@@ -108,7 +107,6 @@ const UploadReceipt = () => {
           const first = Number(a);
           const second = Number(b);
 
-          // Prefer day/month for receipts outside US formatting habits.
           const dayFirstValid = first >= 1 && first <= 31 && second >= 1 && second <= 12;
           const monthFirstValid = first >= 1 && first <= 12 && second >= 1 && second <= 31;
 
@@ -152,7 +150,6 @@ const UploadReceipt = () => {
         setError("File too large. Please upload a file under 10MB.");
         return;
       }
-
       setFile(selected);
       setError("");
     }
@@ -172,7 +169,6 @@ const UploadReceipt = () => {
       const result = await aiService.uploadReceipt(file);
       if (result.success && result.data) {
         setUploadData(result.data);
-        // Pre-fill form with extracted data
         const normalizedCategory = normalizeCategory(result.data.category);
         const normalizedDate = normalizeDateForInput(result.data.date);
         const customCategory = deriveCustomCategory(result.data.category);
@@ -277,9 +273,9 @@ const UploadReceipt = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
+      <div className="space-y-6 font-sans">
+        {/* Header Ribbon */}
+        <div className="flex items-center gap-4 rounded-3xl border border-border bg-card/65 p-6 shadow-xl backdrop-blur-md">
           {step !== "upload" && (
             <Button
               variant="ghost"
@@ -291,45 +287,49 @@ const UploadReceipt = () => {
                 setReceiptPreviewUrl("");
                 setError("");
               }}
+              className="rounded-full hover:bg-muted text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Upload Receipt</h1>
-            <p className="text-muted-foreground">
-              {step === "upload" && "Upload a receipt image for AI extraction"}
-              {step === "review" && "Review and edit extracted data"}
-              {step === "confirm" && "Expense created successfully"}
+          <div className="flex-1">
+            <span className="text-[10px] font-mono tracking-[0.28em] text-primary bg-primary/5 px-2 py-0.5 border border-primary/10 rounded uppercase">
+              Receipt OCR
+            </span>
+            <h1 className="text-3xl font-extrabold tracking-tight mt-1.5">Upload Receipt</h1>
+            <p className="text-sm text-muted-foreground font-sans">
+              {step === "upload" && "Upload a receipt image for automated AI field extraction."}
+              {step === "review" && "Review and edit AI extracted data before draft creation."}
+              {step === "confirm" && "Success! Your expense draft has been created."}
             </p>
           </div>
         </div>
 
         {error && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="rounded-xl">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription className="text-xs font-semibold">{error}</AlertDescription>
           </Alert>
         )}
 
         {/* Upload Step */}
         {step === "upload" && (
-          <Card className="border-border/50 max-w-2xl">
-            <CardHeader>
-              <CardTitle>Upload Receipt Image</CardTitle>
-              <CardDescription>
-                Upload a clear photo of your receipt. Supported formats: JPG, PNG, PDF
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md max-w-2xl">
+            <CardHeader className="border-b border-border bg-muted/20 px-6 py-4">
+              <CardTitle className="text-base font-bold text-foreground">Upload Image File</CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Upload a clear photo of your receipt (JPG, PNG, PDF supported up to 10MB)
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               <form onSubmit={handleUpload} className="space-y-6">
-                <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border/50 bg-secondary/5 p-8">
-                  <Upload className="h-12 w-12 text-muted-foreground mb-4" />
-                  <label htmlFor="file-input" className="cursor-pointer">
-                    <p className="text-lg font-semibold text-foreground">
+                <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-secondary/20 p-8 text-center transition-all duration-300 hover:bg-secondary/40 cursor-pointer relative">
+                  <Upload className="h-12 w-12 text-primary mb-4" />
+                  <label htmlFor="file-input" className="cursor-pointer block">
+                    <p className="text-sm font-bold text-foreground">
                       Click to upload or drag and drop
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {file ? file.name : "PNG, JPG, PDF up to 10MB"}
                     </p>
                   </label>
@@ -344,19 +344,19 @@ const UploadReceipt = () => {
                 </div>
 
                 {file && (
-                  <div className="rounded-lg bg-primary/10 p-3 flex items-center gap-2">
-                    <Check className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">{file.name}</span>
+                  <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 flex items-center gap-3">
+                    <Check className="h-5 w-5 text-primary flex-shrink-0" />
+                    <span className="text-xs font-semibold text-foreground truncate">{file.name}</span>
                   </div>
                 )}
 
                 <Button
                   type="submit"
                   disabled={isUploading || !file}
-                  className="w-full gap-2"
+                  className="w-full gap-2 rounded-full px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md h-10"
                 >
                   {isUploading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {isUploading ? "Uploading..." : "Upload Receipt"}
+                  {isUploading ? "Uploading & Scanning..." : "Scan Receipt with AI"}
                 </Button>
               </form>
             </CardContent>
@@ -368,33 +368,35 @@ const UploadReceipt = () => {
           <div className="grid gap-6 lg:grid-cols-3">
             {/* Image Preview */}
             {receiptPreviewUrl && (
-              <Card className="border-border/50 lg:col-span-1">
-                <CardHeader>
-                  <CardTitle className="text-lg">Receipt Preview</CardTitle>
+              <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md lg:col-span-1 overflow-hidden">
+                <CardHeader className="border-b border-border bg-muted/20 px-6 py-4">
+                  <CardTitle className="text-base font-bold text-foreground">Scanned Document</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4">
                   <img
                     src={receiptPreviewUrl}
                     alt="Receipt preview"
-                    className="w-full rounded-lg border border-border/50"
+                    className="w-full rounded-2xl border border-border"
                   />
                 </CardContent>
               </Card>
             )}
 
             {/* Edit Form */}
-            <Card className={`border-border/50 ${receiptPreviewUrl ? "lg:col-span-2" : "lg:col-span-3"}`}>
-              <CardHeader>
-                <CardTitle>Review Extracted Data</CardTitle>
-                <CardDescription>
-                  Review and edit the data extracted from your receipt
+            <Card className={`rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md overflow-hidden ${
+              receiptPreviewUrl ? "lg:col-span-2" : "lg:col-span-3"
+            }`}>
+              <CardHeader className="border-b border-border bg-muted/20 px-6 py-4">
+                <CardTitle className="text-base font-bold text-foreground">Confirm Extracted Data</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">
+                  AI has extracted the following fields. Please review before saving as a draft.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 <form onSubmit={handleConfirm} className="space-y-6">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="amount">Amount *</Label>
+                      <Label htmlFor="amount" className="text-xs font-semibold text-muted-foreground uppercase">Extracted Amount *</Label>
                       <Input
                         id="amount"
                         type="number"
@@ -404,20 +406,20 @@ const UploadReceipt = () => {
                         value={formData.amount}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="border-border/50"
+                        className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10 font-mono"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="currency">Currency *</Label>
+                      <Label htmlFor="currency" className="text-xs font-semibold text-muted-foreground uppercase">Currency *</Label>
                       <Select
                         value={formData.currency}
                         onValueChange={(value) => handleSelectChange("currency", value)}
                       >
-                        <SelectTrigger disabled={isSubmitting}>
+                        <SelectTrigger disabled={isSubmitting} className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10 font-mono">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-popover border border-border text-xs text-popover-foreground font-mono">
                           <SelectItem value="USD">USD</SelectItem>
                           <SelectItem value="VND">VND</SelectItem>
                           <SelectItem value="EUR">EUR</SelectItem>
@@ -427,7 +429,7 @@ const UploadReceipt = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="merchant">Merchant *</Label>
+                    <Label htmlFor="merchant" className="text-xs font-semibold text-muted-foreground uppercase">Merchant / Vendor *</Label>
                     <Input
                       id="merchant"
                       placeholder="e.g., Starbucks, Uber, Hotel ABC"
@@ -435,21 +437,21 @@ const UploadReceipt = () => {
                       value={formData.merchant}
                       onChange={handleChange}
                       disabled={isSubmitting}
-                      className="border-border/50"
+                      className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10"
                     />
                   </div>
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="category">Category *</Label>
+                      <Label htmlFor="category" className="text-xs font-semibold text-muted-foreground uppercase">Category *</Label>
                       <Select
                         value={formData.category}
                         onValueChange={(value) => handleSelectChange("category", value)}
                       >
-                        <SelectTrigger disabled={isSubmitting}>
+                        <SelectTrigger disabled={isSubmitting} className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10">
                           <SelectValue placeholder="Select a category" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="bg-popover border border-border text-xs text-popover-foreground">
                           {CATEGORIES.map((cat) => (
                             <SelectItem key={cat} value={cat}>
                               {cat}
@@ -460,7 +462,7 @@ const UploadReceipt = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="date">Date *</Label>
+                      <Label htmlFor="date" className="text-xs font-semibold text-muted-foreground uppercase">Transaction Date *</Label>
                       <Input
                         id="date"
                         type="date"
@@ -468,14 +470,14 @@ const UploadReceipt = () => {
                         value={formData.date}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="border-border/50"
+                        className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10 font-mono"
                       />
                     </div>
                   </div>
 
                   {formData.category === "Other" && (
                     <div className="space-y-2">
-                      <Label htmlFor="customCategory">Specify Category *</Label>
+                      <Label htmlFor="customCategory" className="text-xs font-semibold text-muted-foreground uppercase">Specify Category *</Label>
                       <Input
                         id="customCategory"
                         placeholder="e.g., Fuel, Marketing, Client Entertainment"
@@ -483,15 +485,18 @@ const UploadReceipt = () => {
                         value={formData.customCategory}
                         onChange={handleChange}
                         disabled={isSubmitting}
-                        className="border-border/50"
+                        className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 h-10"
                       />
                     </div>
                   )}
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <Label htmlFor="description">Description</Label>
-                      <span className="text-xs text-primary">AI suggested</span>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="description" className="text-xs font-semibold text-muted-foreground uppercase">Description / Justification</Label>
+                      <span className="flex items-center gap-1 text-[10px] font-mono text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">
+                        <Sparkles className="h-3 w-3" />
+                        AI Suggested
+                      </span>
                     </div>
                     <Textarea
                       id="description"
@@ -500,22 +505,20 @@ const UploadReceipt = () => {
                       value={formData.description}
                       onChange={handleChange}
                       disabled={isSubmitting}
-                      className="border-border/50"
+                      className="bg-card border-border text-foreground text-xs rounded-xl focus:ring-primary/20 min-h-[100px]"
                       rows={3}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Review and edit this draft before creating the expense.
-                    </p>
                   </div>
 
-                  <div className="flex gap-4 pt-4">
+                  {/* Actions buttons */}
+                  <div className="flex flex-wrap gap-2 pt-4 border-t border-border">
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="gap-2"
+                      className="gap-2 rounded-full px-6 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md h-10"
                     >
                       {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                      {isSubmitting ? "Creating..." : "Create Expense"}
+                      Create Expense Draft
                     </Button>
                     <Button
                       type="button"
@@ -527,6 +530,7 @@ const UploadReceipt = () => {
                         setUploadData(null);
                         setReceiptPreviewUrl("");
                       }}
+                      className="rounded-full px-6 border-border hover:bg-muted text-foreground font-medium h-10"
                     >
                       Start Over
                     </Button>
@@ -539,14 +543,16 @@ const UploadReceipt = () => {
 
         {/* Success Step */}
         {step === "confirm" && (
-          <Card className="border-border/50 max-w-2xl mx-auto bg-primary/5">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Check className="h-16 w-16 text-primary mb-4" />
-              <h2 className="text-2xl font-bold text-foreground mb-2">Expense Created!</h2>
-              <p className="text-muted-foreground text-center mb-6">
-                Your receipt has been uploaded and the expense has been created. Redirecting...
+          <Card className="rounded-3xl border border-border bg-card/65 shadow-xl backdrop-blur-md max-w-2xl mx-auto overflow-hidden">
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 mb-4 animate-bounce">
+                <Check className="h-8 w-8" />
+              </div>
+              <h2 className="text-2xl font-extrabold text-foreground mb-2">Receipt Scanned & Created!</h2>
+              <p className="text-muted-foreground text-center text-xs mb-6 max-w-sm">
+                Your receipt was uploaded and parsed successfully. Your draft has been generated, opening details view...
               </p>
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </CardContent>
           </Card>
         )}

@@ -4,6 +4,7 @@ public class Expense
 {
     public Guid Id { get; set; }
     public decimal Amount { get; set; }
+    public decimal BaseAmount { get; set; }
     public string Currency { get; set; } = default!;
     public string Merchant { get; set; } = default!;
     public string Category { get; set; } = default!;

@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using Server.Models;
 using Server.Repositories;
@@ -62,7 +60,7 @@ public class SlackService : ISlackService
     public async Task SendAnomalyAlertAsync(string tenantId, Expense expense, string anomalyType, string anomalyReason, User employee)
     {
         var message = $":warning: *Anomaly Detected*\n\n" +
-                      $"*Expense:* {expense.Merchant} — ${expense.Amount}\n" +
+                      $"*Expense:* {expense.Merchant} - ${expense.Amount}\n" +
                       $"*Employee:* {employee.Email}\n" +
                       $"*Date:* {expense.Date:yyyy-MM-dd}\n" +
                       $"*Category:* {expense.Category}\n" +
@@ -83,50 +81,12 @@ public class SlackService : ISlackService
         await SendMessageAsync(tenantId, message);
     }
 
-    public async Task VerifyAndHandleSlashCommandAsync(HttpRequest request, string teamId, string userId, string command, string text, string responseUrl)
+    public Task VerifyAndHandleSlashCommandAsync(HttpRequest request, string teamId, string userId, string command, string text, string responseUrl)
     {
-        // Verify Slack request signature
-        var signature = request.Headers["X-Slack-Signature"].FirstOrDefault();
-        var timestamp = request.Headers["X-Slack-Request-Timestamp"].FirstOrDefault();
-        var body = await new StreamReader(request.Body).ReadToEndAsync();
-
-        // Get tenant by Slack teamId (requires storing teamId in tenant settings)
-        var tenant = (await _tenantRepository.GetAllAsync())
-            .FirstOrDefault(t => t.SlackTeamId == teamId);
-
-        if (tenant == null || string.IsNullOrWhiteSpace(tenant.SlackVerificationToken))
-        {
-            _logger.LogWarning("Slash command from unregistered team: {TeamId}", teamId);
-            await SendSlashResponse(responseUrl, "This workspace is not connected to AiAudit. Contact your Owner to enable Slack integration.");
-            return;
-        }
-
-        // Verify signature (using verification token for now; in production use signing secret)
-        var expectedSignature = "v0=" + ComputeHmacSha256(timestamp + ":" + body, tenant.SlackVerificationToken);
-        if (!CryptographicOperations.FixedTimeEquals(
-            Encoding.UTF8.GetBytes(expectedSignature),
-            Encoding.UTF8.GetBytes(signature ?? "")))
-        {
-            _logger.LogWarning("Invalid Slack signature for team {TeamId}", teamId);
-            await SendSlashResponse(responseUrl, "⚠️ Invalid request signature.");
-            return;
-        }
-
-        var parts = text?.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts == null || parts.Length == 0)
-        {
-            await SendSlashResponse(responseUrl, "Usage: `/expense approve <expense-id>`");
-            return;
-        }
-
-        if (parts[0].Equals("approve", StringComparison.OrdinalIgnoreCase) && parts.Length > 1)
-        {
-            await SendSlashResponse(responseUrl, $"Processing approval for expense ID: {parts[1]}... (Feature coming in Phase 2.2)");
-        }
-        else
-        {
-            await SendSlashResponse(responseUrl, "Unknown command. Try `/expense approve <id>`");
-        }
+        _logger.LogInformation(
+            "Legacy Slack slash handler invoked for team {TeamId}. SlackController handles /expense approvals.",
+            teamId);
+        return SendSlashResponse(responseUrl, "Use `/expense approve <expense-id>` through the `/api/slack/slash` request URL.");
     }
 
     private async Task SendSlashResponse(string responseUrl, string message)
@@ -134,12 +94,5 @@ public class SlackService : ISlackService
         var client = _httpClientFactory.CreateClient("Slack");
         var payload = new { response_type = "ephemeral", text = message };
         await client.PostAsJsonAsync(responseUrl, payload);
-    }
-
-    private static string ComputeHmacSha256(string data, string key)
-    {
-        using var hmac = new System.Security.Cryptography.HMACSHA256(Encoding.UTF8.GetBytes(key));
-        var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(data));
-        return string.Concat(hash.Select(b => b.ToString("x2")));
     }
 }

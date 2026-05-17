@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   CreditCard,
   Users,
+  ShieldCheck as ShieldIcon
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -33,9 +34,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const location = useLocation();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-   const isManager = user?.role === "Manager" || user?.role === "Owner";
-   const isOwner = user?.role === "Owner";
-   const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
+  const isManager = user?.role === "Manager" || user?.role === "Owner";
+  const isOwner = user?.role === "Owner";
+  const canUseSubmitterFeatures = user?.role === "Owner" || user?.role === "Member";
   const isManagerOnly = user?.role === "Manager";
   const initials = user?.email?.slice(0, 2).toUpperCase() ?? "AI";
 
@@ -50,14 +51,16 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
       : []),
     ...(isManager
       ? [
-          { href: "/manager/pending", icon: CheckCircle, label: "Pending Review" },
+          { href: "/manager/pending", icon: CheckCircle, label: "Pending Reviews" },
           { href: "/manager/insights", icon: Activity, label: "Audit Insights" },
+          { href: "/analytics", icon: BarChart3, label: "Advanced Analytics" },
         ]
       : []),
      ...(isOwner
        ? [
            { href: "/settings/policy", icon: ShieldCheck, label: "Policy Settings" },
            { href: "/admin/users", icon: Users, label: "User Management" },
+           { href: "/compliance", icon: ShieldIcon, label: "Compliance Hub" },
          ]
        : []),
     ...(!isManagerOnly
@@ -71,76 +74,86 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
   const isActive = (href: string) => location.pathname === href;
 
   return (
-    <div className="relative flex min-h-screen overflow-hidden bg-background">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_hsl(var(--primary)/0.12),_transparent_28%),radial-gradient(circle_at_bottom_right,_hsl(var(--secondary-foreground)/0.08),_transparent_24%)]" />
+    <div className="relative flex min-h-screen overflow-hidden bg-background text-foreground font-sans">
+      {/* Soft visual background gradient */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_hsl(var(--primary)/0.04),_transparent_28%),radial-gradient(circle_at_bottom_right,_hsl(var(--primary)/0.01),_transparent_24%)] z-0" />
+      
       {sidebarOpen && (
         <button
           aria-label="Close navigation"
-          className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-foreground/10 backdrop-blur-sm md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      {/* Sidebar */}
+      
+      {/* Sidebar Layout */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 border-r border-border/60 bg-card/95 shadow-2xl backdrop-blur-xl transition-transform md:relative md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-card/95 shadow-2xl backdrop-blur-xl transition-transform md:relative md:translate-x-0 z-10 flex flex-col justify-between",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b border-border/60 px-5">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary shadow-[0_10px_30px_-12px_hsl(var(--primary))]">
-              <Leaf className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <div>
-              <span className="block font-semibold text-foreground">AuditAI</span>
-              <span className="block text-[11px] uppercase tracking-[0.24em] text-muted-foreground">Spend governance</span>
-            </div>
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X className="h-5 w-5" />
-          </Button>
+        <div>
+          {/* Friendly Logo */}
+          <div className="flex h-16 items-center justify-between border-b border-border px-5 bg-card/50">
+            <Link to="/" className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_0_12px_rgba(16,185,129,0.3)] transition-all duration-300 hover:rotate-6">
+                <Leaf className="h-5 w-5 font-bold" />
+              </div>
+              <div>
+                <span className="block font-bold tracking-tight text-sm">AuditAI</span>
+                <span className="block text-[9px] uppercase tracking-[0.24em] text-muted-foreground font-semibold">Smart Spend Control</span>
+              </div>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden text-muted-foreground hover:text-foreground"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {/* Navigation links - Font Sans for elegant feel */}
+          <nav className="space-y-1 px-3 py-5">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                to={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-4 py-2.5 text-xs font-semibold tracking-wide transition-all border border-transparent",
+                  isActive(item.href)
+                    ? "bg-primary/10 text-primary border-primary/20 shadow-[0_0_12px_rgba(16,185,129,0.05)] font-bold"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground hover:border-border/40"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
 
-        <nav className="space-y-1 px-3 py-5">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              to={item.href}
-              onClick={() => setSidebarOpen(false)}
-              className={cn(
-                "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all",
-                isActive(item.href)
-                  ? "bg-primary text-primary-foreground shadow-[0_16px_40px_-24px_hsl(var(--primary))]"
-                  : "text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="mx-3 mt-auto rounded-3xl border border-border/60 bg-secondary/40 p-4">
-          <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Workspace</p>
-          <p className="mt-2 text-sm font-medium text-foreground">{user?.companyName ?? "AuditAI tenant"}</p>
-           <p className="mt-1 text-sm text-muted-foreground">Role: {user?.role ?? "Member"}</p>
+        {/* Workspace Display Card */}
+        <div className="mx-3 rounded-2xl border border-border bg-secondary/40 p-4 text-xs mb-4">
+          <p className="text-[9px] uppercase tracking-[0.24em] text-muted-foreground font-bold">Workspace</p>
+          <p className="mt-1 font-bold text-foreground truncate">{user?.companyName ?? "AuditAI tenant"}</p>
+          <p className="mt-1.5 text-[10px] text-muted-foreground uppercase">
+            Role: <span className="text-primary font-bold">{user?.role ?? "Member"}</span>
+          </p>
         </div>
       </aside>
 
-      {/* Main content */}
-      <div className="relative z-10 flex-1 overflow-hidden">
-        {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/60 bg-background/80 px-4 backdrop-blur-xl md:px-8">
+      {/* Main content area */}
+      <div className="relative z-10 flex-1 overflow-hidden flex flex-col min-h-screen">
+        {/* Top bar header */}
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-background/60 px-4 backdrop-blur-xl md:px-8">
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden"
+            className="md:hidden text-muted-foreground hover:text-foreground"
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
             <Menu className="h-5 w-5" />
@@ -148,35 +161,36 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
 
           <div className="flex-1" />
 
+          {/* User profile console block */}
           <div className="flex items-center gap-3">
-            <ThemeToggle className="border border-border/60 bg-card/80 hover:bg-card" />
+            <ThemeToggle className="border border-border bg-card/45 hover:bg-card rounded-xl" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-auto rounded-2xl border border-border/60 bg-card/80 px-3 py-2 shadow-sm hover:bg-card">
-                  <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/15 text-sm font-semibold text-primary">
+                <Button variant="ghost" className="h-auto rounded-xl border border-border bg-card/45 px-3 py-1.5 hover:bg-card shadow-sm">
+                  <div className="mr-2 flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary border border-primary/20">
                     {initials}
                   </div>
-                  <div className="text-right leading-tight">
-                    <p className="text-sm font-medium">{user?.email}</p>
-                    <p className="text-xs text-muted-foreground">{user?.role}</p>
+                  <div className="text-right leading-tight hidden sm:block">
+                    <p className="text-xs font-bold text-foreground">{user?.email}</p>
+                    <p className="text-[9px] uppercase text-muted-foreground tracking-wider mt-0.5">{user?.role}</p>
                   </div>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="w-56 bg-popover border border-border text-popover-foreground text-xs">
+                <DropdownMenuLabel className="text-muted-foreground">
                   <div>
-                    <p className="font-semibold">{user?.email}</p>
-                    <p className="text-xs text-muted-foreground">{user?.companyName}</p>
+                    <p className="font-bold text-foreground">{user?.email}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 uppercase">{user?.companyName}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
+                <DropdownMenuItem asChild className="focus:bg-secondary focus:text-foreground cursor-pointer">
                   <Link to="/settings">Settings</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={logout}
-                  className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
@@ -186,9 +200,9 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="h-[calc(100vh-4rem)] overflow-auto">
-          <div className="mx-auto max-w-7xl p-4 md:p-8">{children}</div>
+        {/* Page content wrapper */}
+        <main className="flex-1 overflow-auto">
+          <div className="mx-auto max-w-7xl p-4 md:p-6 lg:p-8 animate-fade-in">{children}</div>
         </main>
       </div>
     </div>

@@ -15,6 +15,8 @@ public sealed class NotificationService : INotificationService
     private readonly IUserRepository _userRepository;
     private readonly IExpenseRepository _expenseRepository;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IBackgroundTaskQueue _taskQueue;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public NotificationService(
         IAuditLogRepository auditLogRepository,
@@ -24,7 +26,9 @@ public sealed class NotificationService : INotificationService
         ITenantRepository tenantRepository,
         IUserRepository userRepository,
         IExpenseRepository expenseRepository,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IBackgroundTaskQueue taskQueue,
+        IServiceScopeFactory scopeFactory)
     {
         _auditLogRepository = auditLogRepository;
         _logger = logger;
@@ -34,6 +38,8 @@ public sealed class NotificationService : INotificationService
         _userRepository = userRepository;
         _expenseRepository = expenseRepository;
         _httpClientFactory = httpClientFactory;
+        _taskQueue = taskQueue;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task NotifyAnomalyDetectedAsync(Expense expense, string anomalyType, string anomalyReason, User employee)
@@ -64,24 +70,30 @@ public sealed class NotificationService : INotificationService
         await _auditLogRepository.SaveChangesAsync();
 
         // Send notifications asynchronously without blocking
-        _ = Task.Run(async () =>
+        await _taskQueue.QueueBackgroundWorkItemAsync(async token =>
         {
+            using var scope = _scopeFactory.CreateScope();
+            var scopedTenantRepo = scope.ServiceProvider.GetRequiredService<ITenantRepository>();
+            var scopedUserRepo = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+            var scopedEmailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+            var scopedSlackService = scope.ServiceProvider.GetRequiredService<ISlackService>();
+
             try
             {
-                var tenant = await _tenantRepository.GetByIdAsync(expense.TenantId);
+                var tenant = await scopedTenantRepo.GetByIdAsync(expense.TenantId);
                 if (tenant != null)
                 {
                     if (tenant.EmailNotificationsEnabled)
                     {
-                        var employee = await _userRepository.GetByIdAsync(expense.UserId);
-                        if (employee != null)
+                        var employeeObj = await scopedUserRepo.GetByIdAsync(expense.UserId);
+                        if (employeeObj != null)
                         {
-                            await _emailService.SendExpenseFlaggedAsync(expense, anomalyType, anomalyReason, employee);
+                            await scopedEmailService.SendExpenseFlaggedAsync(expense, anomalyType, anomalyReason, employeeObj);
                         }
                     }
                     if (tenant.SlackNotificationsEnabled)
                     {
-                        await _slackService.SendAnomalyAlertAsync(expense.TenantId.ToString(), expense, anomalyType, anomalyReason, employee);
+                        await scopedSlackService.SendAnomalyAlertAsync(expense.TenantId.ToString(), expense, anomalyType, anomalyReason, employee);
                     }
                 }
             }
@@ -144,9 +156,9 @@ public sealed class NotificationService : INotificationService
         try
         {
             var tenant = await _tenantRepository.GetByIdAsync(tenantId);
-            if (tenant == null || string.IsNullOrWhiteSpace(tenant.ManagerEmail))
+            if (tenant == null)
             {
-                _logger.LogWarning("Tenant not found or ManagerEmail missing for digest: {TenantId}", tenantId);
+                _logger.LogWarning("Tenant not found for digest: {TenantId}", tenantId);
                 return;
             }
 
@@ -156,7 +168,19 @@ public sealed class NotificationService : INotificationService
             var highRiskExpenses = allExpenses.Where(e => e.Flagged).ToList();
 
             var reportUrl = $"{GetAppBaseUrl()}/manager/review?tenant={tenantId}";
-            await _emailService.SendWeeklyDigestAsync(tenant, pendingExpenses, highRiskExpenses, reportUrl);
+            var users = await _userRepository.GetByTenantIdAsync(tenantId);
+            var recipients = users
+                .Where(user => user.IsActive && user.Role.Equals("Owner", StringComparison.OrdinalIgnoreCase))
+                .Select(user => user.Email)
+                .Append(tenant.ManagerEmail)
+                .Where(email => !string.IsNullOrWhiteSpace(email))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var recipient in recipients)
+            {
+                await _emailService.SendWeeklyDigestAsync(tenant, pendingExpenses, highRiskExpenses, reportUrl, recipient!);
+            }
 
             // Audit log
             var auditLog = new AuditLog
@@ -164,7 +188,7 @@ public sealed class NotificationService : INotificationService
                 Id = Guid.NewGuid(),
                 Action = "WeeklyDigestSent",
                 PerformedBy = "WeeklyDigestBot",
-                NewValue = $"Sent weekly digest to {tenant.ManagerEmail} ({pendingExpenses.Count} pending, {highRiskExpenses.Count} high-risk)",
+                NewValue = $"Sent weekly digest to {recipients.Count} recipient(s) ({pendingExpenses.Count} pending, {highRiskExpenses.Count} high-risk)",
                 Timestamp = DateTime.UtcNow
             };
             await _auditLogRepository.AddAsync(auditLog);

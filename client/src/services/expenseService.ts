@@ -62,6 +62,7 @@ export interface ExpenseStats {
   draftCount: number;
   highRiskCount: number;
   averageRiskScore: number;
+  autoApprovedCount: number;
   insights: {
     currentMonthTotal: number;
     previousMonthTotal: number;
@@ -120,6 +121,26 @@ export const expenseService = {
       return {
         success: false,
         error: error.response?.data?.error || "Failed to update expense",
+      };
+    }
+  },
+
+  bulkUpdate: async (request: Array<{
+    id: string;
+    amount: number;
+    currency: string;
+    merchant: string;
+    category: string;
+    date: string;
+    description?: string;
+  }>): Promise<ApiResponse<Expense[]>> => {
+    try {
+      const response = await apiClient.put("/expenses/bulk-update", request);
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || "Failed to bulk update expenses",
       };
     }
   },

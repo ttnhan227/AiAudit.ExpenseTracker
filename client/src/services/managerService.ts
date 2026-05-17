@@ -64,6 +64,26 @@ export interface AuditInsight {
     slaBreachedDecisions: number;
     escalationCount: number;
   };
+  learningMetrics: {
+    feedbackCount: number;
+    falsePositiveCount: number;
+    autoApprovalFalsePositiveCount: number;
+    falsePositiveRate: number;
+    currentConfidenceScore: number;
+    confidenceTrendPercentage: number;
+  };
+  policyRecommendations: Array<{
+    title: string;
+    recommendation: string;
+    estimatedSavings: number;
+    benchmark: string;
+  }>;
+  employeeBehaviorInsights: Array<{
+    employeeEmail: string;
+    insight: string;
+    nudge: string;
+    signalCount: number;
+  }>;
   topRejectionReasons: Array<{
     reason: string;
     count: number;
@@ -109,12 +129,28 @@ export interface RejectRequest {
   reason: string;
 }
 
+export interface ReviewFeedbackRequest {
+  correctedRiskLevel: string;
+  wasFalsePositive: boolean;
+  notes?: string;
+}
+
 export interface BudgetPrediction {
   predictedMonthTotal: number;
   confidencePercentage: number;
   healthStatus: string;
   variancePercentage: number;
   daysRemaining: number;
+  categoryPredictions: Array<{
+    category: string;
+    budget: number;
+    spentToDate: number;
+    projectedMonthly: number;
+    predictedUsagePercentage: number;
+    willExceedBudget: boolean;
+    confidenceScore: number;
+    daysRemaining: number;
+  }>;
 }
 
 export const managerService = {
@@ -202,6 +238,40 @@ export const managerService = {
       return response.data;
     } catch (error: any) {
       throw new Error(error.response?.data?.error || "Failed to export expenses");
+    }
+  },
+
+  submitReviewFeedback: async (expenseId: string, request: ReviewFeedbackRequest): Promise<ApiResponse<unknown>> => {
+    try {
+      const response = await apiClient.post(`/manager/feedback/${expenseId}`, request);
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || "Failed to submit review feedback",
+      };
+    }
+  },
+
+  exportQuickBooks: async (): Promise<Blob> => {
+    try {
+      const response = await apiClient.get("/manager/export/quickbooks", {
+        responseType: "blob",
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || "Failed to export QuickBooks file");
+    }
+  },
+
+  exportXero: async (): Promise<Blob> => {
+    try {
+      const response = await apiClient.get("/manager/export/xero", {
+        responseType: "blob",
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || "Failed to export Xero file");
     }
   },
 };

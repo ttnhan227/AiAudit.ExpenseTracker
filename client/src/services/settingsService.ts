@@ -14,6 +14,16 @@ export interface UpdatePolicyRequest {
   policyNotes?: string;
 }
 
+export interface CategoryBudget {
+  category: string;
+  limit: number;
+  spent: number;
+  remaining: number;
+  usagePercentage: number;
+  isNearLimit: boolean;
+  isAtLimit: boolean;
+}
+
 export interface AutoApprovalRules {
   enabled: boolean;
   maxAmount: number;
@@ -75,6 +85,30 @@ export const settingsService = {
       return {
         success: false,
         error: error.response?.data?.error || "Failed to update policy",
+      };
+    }
+  },
+
+  getCategoryBudgets: async (): Promise<ApiResponse<CategoryBudget[]>> => {
+    try {
+      const response = await apiClient.get("/settings/category-budgets");
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || "Failed to fetch category budgets",
+      };
+    }
+  },
+
+  updateCategoryBudgets: async (budgets: Record<string, number>): Promise<ApiResponse<null>> => {
+    try {
+      const response = await apiClient.put("/settings/category-budgets", { budgets });
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || "Failed to update category budgets",
       };
     }
   },

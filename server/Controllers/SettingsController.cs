@@ -35,6 +35,23 @@ public class SettingsController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
+    [HttpGet("category-budgets")]
+    public async Task<IActionResult> GetCategoryBudgets()
+    {
+        var tenantId = User.GetTenantId();
+        var result = await _settingsService.GetCategoryBudgetsAsync(tenantId);
+        return result.Success ? Ok(result) : NotFound(result);
+    }
+
+    [Authorize(Roles = "Owner")]
+    [HttpPut("category-budgets")]
+    public async Task<IActionResult> UpdateCategoryBudgets(UpdateCategoryBudgetsRequest request)
+    {
+        var tenantId = User.GetTenantId();
+        var result = await _settingsService.UpdateCategoryBudgetsAsync(tenantId, request);
+        return result.Success ? Ok(result) : NotFound(result);
+    }
+
      [HttpGet("auto-approval-rules")]
      public async Task<IActionResult> GetAutoApprovalRules()
      {
@@ -69,4 +86,3 @@ public class SettingsController : ControllerBase
          return result.Success ? Ok(result) : NotFound(result);
      }
  }
-

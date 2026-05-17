@@ -10,5 +10,6 @@ public interface IAuthService
     Task<ApiResult<AuthResponse>> AcceptInviteAsync(AcceptInviteRequest request);
     Task<ApiResult<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request);
     Task<ApiResult<UserProfileResponse>> GetProfileAsync(Guid userId);
+    Task<ApiResult> UpdateProfileAsync(Guid userId, UpdateProfileRequest request);
     Task<ApiResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest request);
 }

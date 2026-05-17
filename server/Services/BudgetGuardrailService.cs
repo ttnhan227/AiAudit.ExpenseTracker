@@ -77,11 +77,11 @@ public sealed class BudgetGuardrailService : IBudgetGuardrailService
 
         if (usagePercentage >= 100)
         {
-            alerts.Add(await CreateAlertAsync(tenant.Id, expense.Category, budgetLimit, totalSpent, usagePercentage, "at_limit"));
+            alerts.Add(await CreateAlertAsync(expense.Id, tenant.Id, expense.Category, budgetLimit, totalSpent, usagePercentage, "at_limit"));
         }
         else if (usagePercentage >= 80)
         {
-            alerts.Add(await CreateAlertAsync(tenant.Id, expense.Category, budgetLimit, totalSpent, usagePercentage, "near_limit"));
+            alerts.Add(await CreateAlertAsync(expense.Id, tenant.Id, expense.Category, budgetLimit, totalSpent, usagePercentage, "near_limit"));
         }
 
         return alerts;
@@ -89,7 +89,6 @@ public sealed class BudgetGuardrailService : IBudgetGuardrailService
 
     public async Task<ApiResult<BudgetPredictionResponse>> GetBudgetPredictionAsync(Tenant tenant)
     {
-        var budgets = ParseCategoryBudgets(tenant.CategoryBudgets);
         var expenses = await _expenseRepository.GetTenantExpensesAsync(tenant.Id);
         var now = DateTime.UtcNow;
         var startOfMonth = new DateTime(now.Year, now.Month, 1);
@@ -115,14 +114,59 @@ public sealed class BudgetGuardrailService : IBudgetGuardrailService
             var p when p <= avgMonthlySpend * 1.3m => "Warning",
             _ => "Critical"
         };
+        var categoryPredictions = BuildCategoryPredictions(tenant, expenses, now, daysElapsed, daysInMonth, daysRemaining, confidence);
 
         return ApiResult<BudgetPredictionResponse>.Ok(new BudgetPredictionResponse(
             PredictedMonthTotal: Math.Round(projectedMonthTotal, 2),
             ConfidencePercentage: Math.Round(confidence * 100, 1), // convert to percentage
             HealthStatus: healthStatus,
             VariancePercentage: Math.Round(variance, 1),
-            DaysRemaining: daysRemaining
+            DaysRemaining: daysRemaining,
+            CategoryPredictions: categoryPredictions
         ));
+    }
+
+    private CategoryPrediction[] BuildCategoryPredictions(
+        Tenant tenant,
+        IEnumerable<Expense> expenses,
+        DateTime now,
+        int daysElapsed,
+        int daysInMonth,
+        int daysRemaining,
+        decimal confidence)
+    {
+        var budgets = ParseCategoryBudgets(tenant.CategoryBudgets);
+        if (budgets.Count == 0)
+        {
+            return Array.Empty<CategoryPrediction>();
+        }
+
+        var startOfMonth = new DateTime(now.Year, now.Month, 1);
+        var monthlyExpenses = expenses.Where(expense => expense.Date >= startOfMonth).ToList();
+
+        return budgets
+            .Select(item =>
+            {
+                var spent = monthlyExpenses
+                    .Where(expense => expense.Category.Equals(item.Key, StringComparison.OrdinalIgnoreCase))
+                    .Sum(expense => expense.Amount);
+                var dailyAverage = daysElapsed > 0 ? spent / daysElapsed : 0m;
+                var projected = dailyAverage * daysInMonth;
+                var usage = item.Value > 0 ? (int)Math.Round(projected / item.Value * 100m) : 0;
+
+                return new CategoryPrediction(
+                    item.Key,
+                    item.Value,
+                    Math.Round(spent, 2),
+                    Math.Round(projected, 2),
+                    usage,
+                    usage >= 100,
+                    Math.Round(confidence * 100, 1),
+                    daysRemaining);
+            })
+            .OrderByDescending(prediction => prediction.WillExceedBudget)
+            .ThenByDescending(prediction => prediction.PredictedUsagePercentage)
+            .ToArray();
     }
 
     private static decimal CalculateConfidenceScore(int daysElapsed, decimal dailyAvg, decimal historicalAvg)
@@ -163,7 +207,7 @@ public sealed class BudgetGuardrailService : IBudgetGuardrailService
         }
     }
 
-    private async Task<BudgetAlert> CreateAlertAsync(Guid tenantId, string category, decimal limit, decimal spent, int usagePercentage, string alertType)
+    private async Task<BudgetAlert> CreateAlertAsync(Guid expenseId, Guid tenantId, string category, decimal limit, decimal spent, int usagePercentage, string alertType)
     {
         var alert = new BudgetAlert(
             TenantId: tenantId,
@@ -178,7 +222,7 @@ public sealed class BudgetGuardrailService : IBudgetGuardrailService
         var auditLog = new AuditLog
         {
             Id = Guid.NewGuid(),
-            ExpenseId = null,
+            ExpenseId = expenseId,
             Action = $"BudgetAlert_{alertType}",
             PerformedBy = "BudgetGuardrailBot",
             NewValue = JsonSerializer.Serialize(alert),

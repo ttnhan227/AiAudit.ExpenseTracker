@@ -36,8 +36,6 @@ public sealed class AuthService : IAuthService
 
     public async Task<ApiResult<AuthResponse>> RegisterAsync(RegisterRequest request)
     {
-        // SECURITY: Email uniqueness check must bypass RLS because the user is
-        // not yet authenticated. We use a separate context without RLS session context.
         using var bypassContext = _contextFactory.CreateDbContext();
         var emailAlreadyRegistered = await bypassContext.Users
             .FromSqlRaw("SELECT * FROM public.\"Users\" WHERE \"Email\" = {0}", request.Email)
@@ -61,7 +59,8 @@ public sealed class AuthService : IAuthService
             CompanyName = request.CompanyName,
             ApiKey = Guid.NewGuid().ToString("N"),
             PlanType = "Standard",
-            MaxSpendLimit = 2_000_000m
+            MaxSpendLimit = 2_000_000m,
+            BaseCurrency = "USD"
         };
 
         var user = new User
@@ -74,10 +73,10 @@ public sealed class AuthService : IAuthService
             InviteToken = null,
             InviteTokenExpiresAt = null,
             TenantId = tenant.Id,
-            Tenant = tenant
+            Tenant = tenant,
+            PreferredCurrency = "USD"
         };
 
-        // SECURITY: Insert with explicit tenant context to satisfy RLS policies
         await using var transaction = await _tenantRepository.BeginTransactionAsync();
         try
         {
@@ -134,8 +133,6 @@ public sealed class AuthService : IAuthService
             return ApiResult<AuthResponse>.Fail("Invite token is invalid or expired.");
         }
 
-        // SECURITY: AcceptInvite works across tenants (unauthenticated user),
-        // so we set the tenant context within the transaction.
         using var transaction = await _userRepository.BeginTransactionAsync();
         try
         {
@@ -162,8 +159,6 @@ public sealed class AuthService : IAuthService
 
     public async Task<ApiResult<AuthResponse>> RefreshTokenAsync(RefreshTokenRequest request)
     {
-        // SECURITY: Refresh token lookup bypasses RLS via FromSqlRaw because the
-        // request is unauthenticated (401 scenario).
         using var bypassContext = _contextFactory.CreateDbContext();
         var token = await bypassContext.RefreshTokens
             .FromSqlRaw("SELECT * FROM public.\"RefreshTokens\" WHERE \"Token\" = {0}", request.RefreshToken)
@@ -176,14 +171,13 @@ public sealed class AuthService : IAuthService
             return ApiResult<AuthResponse>.Fail("Refresh token is invalid or expired.");
         }
 
-        // Set tenant context before processing
         token.Revoked = true;
         var newRefreshToken = _tokenService.CreateRefreshToken(token.UserId);
         await _refreshTokenRepository.AddAsync(newRefreshToken);
         await _refreshTokenRepository.SaveChangesAsync();
 
         var accessToken = _tokenService.CreateAccessToken(token.User);
-        var profile = new UserProfileResponse(token.User.Id, token.User.Email, token.User.Role, token.User.TenantId, token.User.Tenant?.CompanyName ?? string.Empty, token.User.Tenant?.PlanType ?? string.Empty);
+        var profile = ToProfileResponse(token.User);
         var response = new AuthResponse(accessToken, newRefreshToken.Token, DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenMinutes), profile);
 
         return ApiResult<AuthResponse>.Ok(response);
@@ -197,8 +191,24 @@ public sealed class AuthService : IAuthService
             return ApiResult<UserProfileResponse>.Fail("User not found.");
         }
 
-        var profile = new UserProfileResponse(user.Id, user.Email, user.Role, user.TenantId, user.Tenant?.CompanyName ?? string.Empty, user.Tenant?.PlanType ?? string.Empty);
-        return ApiResult<UserProfileResponse>.Ok(profile);
+        return ApiResult<UserProfileResponse>.Ok(ToProfileResponse(user));
+    }
+
+    public async Task<ApiResult> UpdateProfileAsync(Guid userId, UpdateProfileRequest request)
+    {
+        var user = await _userRepository.GetByIdAsync(userId);
+        if (user is null || !user.IsActive)
+        {
+            return ApiResult.Fail("User not found.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.PreferredCurrency))
+        {
+            user.PreferredCurrency = request.PreferredCurrency.ToUpperInvariant();
+        }
+
+        await _userRepository.SaveChangesAsync();
+        return ApiResult.Ok();
     }
 
     public async Task<ApiResult> ChangePasswordAsync(Guid userId, ChangePasswordRequest request)
@@ -242,8 +252,20 @@ public sealed class AuthService : IAuthService
         await _refreshTokenRepository.AddAsync(refreshToken);
         await _refreshTokenRepository.SaveChangesAsync();
 
-        var profile = new UserProfileResponse(user.Id, user.Email, user.Role, user.TenantId, user.Tenant?.CompanyName ?? string.Empty, user.Tenant?.PlanType ?? string.Empty);
+        var profile = ToProfileResponse(user);
         var response = new AuthResponse(accessToken, refreshToken.Token, DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenMinutes), profile);
         return ApiResult<AuthResponse>.Ok(response);
+    }
+
+    private UserProfileResponse ToProfileResponse(User user)
+    {
+        return new UserProfileResponse(
+            user.Id,
+            user.Email,
+            user.Role,
+            user.TenantId,
+            user.Tenant?.CompanyName ?? string.Empty,
+            user.Tenant?.PlanType ?? string.Empty,
+            user.PreferredCurrency);
     }
 }

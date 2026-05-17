@@ -111,6 +111,9 @@ builder.Services.AddScoped<IBudgetGuardrailService, BudgetGuardrailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ISlackService, SlackService>();
 builder.Services.AddScoped<ICategoryRulesService, CategoryRulesService>();
+builder.Services.AddScoped<IFxRateService, FxRateService>();
+builder.Services.AddScoped<IAdvancedAnalyticsService, AdvancedAnalyticsService>();
+builder.Services.AddScoped<IComplianceService, ComplianceService>();
 builder.Services.AddSingleton<IBackgroundTaskQueue>(_ => new BackgroundTaskQueue(1000)); // capacity 1000
 
 builder.Services.AddHttpClient("MistralClient");
@@ -131,8 +134,13 @@ if (connectionString.StartsWith("postgresql://") || connectionString.StartsWith(
     connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
 }
 
-builder.Services.AddDbContextFactory<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<Server.Data.Interceptors.AuditLogSaveChangesInterceptor>();
+
+builder.Services.AddDbContextFactory<AppDbContext>((sp, options) =>
+    options.UseNpgsql(connectionString)
+           .AddInterceptors(sp.GetRequiredService<Server.Data.Interceptors.AuditLogSaveChangesInterceptor>())
+           .AddInterceptors(new Server.Data.Interceptors.EntityValidationInterceptor()));
 
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>() ?? new JwtSettings();
 var key = Encoding.UTF8.GetBytes(jwtSettings.Secret);
@@ -162,6 +170,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHostedService<AutoApprovalService>();
 builder.Services.AddHostedService<WeeklyDigestBackgroundService>();
 builder.Services.AddHostedService<DailySlackDigestBackgroundService>();
+builder.Services.AddHostedService<QueuedHostedService>();
 
 var app = builder.Build();
 var hasHttpsBinding = builder.Configuration["ASPNETCORE_URLS"]?.Contains("https://", StringComparison.OrdinalIgnoreCase) == true;

@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Server.Data;
 
 #nullable disable
 
 namespace server.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260513000000_AddRowLevelSecurity")]
     public partial class AddRowLevelSecurity : Migration
     {
         /// <inheritdoc />

@@ -39,19 +39,93 @@ public static class DatabaseSeeder
             var refreshTokens = new List<RefreshToken>();
             var sharedPasswordHash = Services.PasswordHasher.Hash("123");
 
+            var subscriptions = new List<Subscription>();
+
             foreach (var tenantSeed in tenantSeeds)
             {
+                // Align seeded PlanType with standard subscriptions
+                var planId = tenantSeed.PlanType switch
+                {
+                    "Growth" => "professional",
+                    "Business" => "professional",
+                    "Startup" => "starter",
+                    "Enterprise" => "enterprise",
+                    _ => "professional"
+                };
+
+                var planName = planId switch
+                {
+                    "starter" => "Starter",
+                    "professional" => "Professional",
+                    "enterprise" => "Enterprise",
+                    _ => "Professional"
+                };
+
+                var monthlyPrice = planId switch { "starter" => 29m, "professional" => 79m, "enterprise" => 299m, _ => 79m };
+                var annualPrice = planId switch { "starter" => 319m, "professional" => 869m, "enterprise" => 3288m, _ => 869m };
+
                 var tenant = new Tenant
                 {
                     Id = Guid.NewGuid(),
                     CompanyName = tenantSeed.CompanyName,
                     ApiKey = tenantSeed.ApiKey,
-                    PlanType = tenantSeed.PlanType,
+                    PlanType = planName,
                     MaxSpendLimit = tenantSeed.MaxSpendLimit,
-                    PolicyNotes = tenantSeed.PolicyNotes
+                    PolicyNotes = tenantSeed.PolicyNotes,
+                    BaseCurrency = "USD",
+                    
+                    // Enable Auto-approval default rules to demonstrate Phase 1 count
+                    AutoApprovalEnabled = true,
+                    AutoApprovalMaxAmount = 100m,
+                    AutoApprovalMaxRiskScore = 30,
+                    AutoApprovalExcludeWeekends = true,
+                    AutoApprovalMinAgeHours = 12,
+                    AutoApprovalExcludedCategories = "[\"Entertainment\"]",
+
+                    // Seed highly realistic budgets to make budget pooling dashboard beautiful instantly
+                    CategoryBudgets = JsonSerializer.Serialize(new Dictionary<string, decimal>
+                    {
+                        { "Travel", 5000m },
+                        { "Meals", 1500m },
+                        { "Software", 2500m },
+                        { "Office Supplies", 1000m },
+                        { "Lodging", 4000m },
+                        { "Ground Transport", 800m },
+                        { "Equipment", 5000m }
+                    }),
+
+                    // Seed standard auto-categorization rules
+                    CategoryRules = JsonSerializer.Serialize(new[]
+                    {
+                        new { Pattern = "delta", Category = "Travel" },
+                        new { Pattern = "united", Category = "Travel" },
+                        new { Pattern = "uber", Category = "Ground Transport" },
+                        new { Pattern = "lyft", Category = "Ground Transport" },
+                        new { Pattern = "starbucks", Category = "Meals" },
+                        new { Pattern = "marriott", Category = "Lodging" },
+                        new { Pattern = "hilton", Category = "Lodging" },
+                        new { Pattern = "figma", Category = "Software" },
+                        new { Pattern = "salesforce", Category = "Software" }
+                    })
                 };
 
                 tenants.Add(tenant);
+
+                // Seed the active subscription record
+                subscriptions.Add(new Subscription
+                {
+                    Id = Guid.NewGuid(),
+                    Tenant = tenant,
+                    PlanId = planId,
+                    PlanName = planName,
+                    MonthlyPrice = monthlyPrice,
+                    AnnualPrice = annualPrice,
+                    BillingCycle = planId == "enterprise" ? "annual" : "monthly",
+                    StartDate = now.AddMonths(-2),
+                    RenewalDate = planId == "enterprise" ? now.AddYears(1) : now.AddMonths(1),
+                    IsActive = true,
+                    Status = "active"
+                });
 
                 foreach (var userSeed in tenantSeed.Users)
                 {
@@ -61,7 +135,8 @@ public static class DatabaseSeeder
                         Email = userSeed.Email,
                         PasswordHash = sharedPasswordHash,
                         Role = userSeed.Role,
-                        Tenant = tenant
+                        Tenant = tenant,
+                        PreferredCurrency = userSeed.PreferredCurrency
                     };
 
                     users.Add(user);
@@ -76,12 +151,23 @@ public static class DatabaseSeeder
 
                     foreach (var expenseSeed in userSeed.Expenses)
                     {
+                        var convertedBaseAmount = expenseSeed.Currency switch
+                        {
+                            "USD" => expenseSeed.Amount,
+                            "EUR" => expenseSeed.Amount * 1.085m,
+                            "GBP" => expenseSeed.Amount * 1.250m,
+                            "JPY" => expenseSeed.Amount * 0.0064m,
+                            "VND" => expenseSeed.Amount * 0.00004m,
+                            _ => expenseSeed.Amount
+                        };
+
                         var expense = new Expense
                         {
                             Id = Guid.NewGuid(),
                             Tenant = tenant,
                             User = user,
                             Amount = expenseSeed.Amount,
+                            BaseAmount = decimal.Round(convertedBaseAmount, 2),
                             Currency = expenseSeed.Currency,
                             Merchant = expenseSeed.Merchant,
                             Category = expenseSeed.Category,
@@ -116,6 +202,7 @@ public static class DatabaseSeeder
             }
 
             context.Tenants.AddRange(tenants);
+            context.Subscriptions.AddRange(subscriptions);
             context.Users.AddRange(users);
             context.Expenses.AddRange(expenses);
             context.Receipts.AddRange(receipts);
@@ -235,18 +322,20 @@ public static class DatabaseSeeder
                         "marco.silva@northwindanalytics.com",
                         "Member",
                         [
-                            Expense("United Airlines", "Travel", 1184.20m, "Pending", now.AddDays(-6), "Flight to New York for enterprise renewal workshop.", "/uploads/northwind-united-nyc.jpg", true, "Amount exceeds tenant review threshold.", "Flagged automatically because airfare exceeded standard review band."),
-                            Expense("Hilton Midtown", "Lodging", 884.55m, "Approved", now.AddDays(-11), "Hotel stay during the New York renewal workshop.", "/uploads/northwind-hilton-midtown.jpg", reviewNote: "Approved with attached itinerary.", reviewedBy: "olivia.chen@northwindanalytics.com"),
+                            Expense("United Airlines", "Travel", 1050.00m, "Pending", now.AddDays(-6), "Flight to New York for enterprise renewal workshop.", "/uploads/northwind-united-nyc.jpg", true, "Amount exceeds tenant review threshold.", currency: "EUR"),
+                            Expense("Hilton Midtown", "Lodging", 790.00m, "Approved", now.AddDays(-11), "Hotel stay during the New York renewal workshop.", "/uploads/northwind-hilton-midtown.jpg", reviewNote: "Approved with attached itinerary.", reviewedBy: "olivia.chen@northwindanalytics.com", currency: "EUR"),
                             Expense("Staples", "Office Supplies", 73.14m, "Approved", now.AddDays(-14), "Replacement notebooks and whiteboard supplies for the analytics squad.", "/uploads/northwind-staples.jpg", reviewNote: "Approved as normal office supply reimbursement.", reviewedBy: "olivia.chen@northwindanalytics.com")
-                        ]),
+                        ],
+                        "EUR"),
                     new UserSeed(
                         "nina.kapoor@northwindanalytics.com",
                         "Member",
                         [
-                            Expense("Adobe", "Software", 89.99m, "Approved", now.AddDays(-18), "Monthly Adobe license for customer-facing deck production.", "/uploads/northwind-adobe.jpg", reviewNote: "Approved recurring subscription."),
-                            Expense("Lyft", "Ground Transport", 38.70m, "Approved", now.AddDays(-9), "Client-site commute after transit delay.", "/uploads/northwind-lyft-client.jpg", reviewNote: "Approved with supporting schedule note."),
-                            Expense("The Smith", "Meals", 221.40m, "Pending", now.AddDays(-2), "Dinner with procurement contacts after renewal negotiations.", "/uploads/northwind-the-smith.jpg", true, "Expense triggered policy review.", "Pending review due to client entertainment category.")
-                        ])
+                            Expense("Adobe", "Software", 89.99m, "Approved", now.AddDays(-18), "Monthly Adobe license for customer-facing deck production.", "/uploads/northwind-adobe.jpg", reviewNote: "Approved recurring subscription.", currency: "GBP"),
+                            Expense("Lyft", "Ground Transport", 34.50m, "Approved", now.AddDays(-9), "Client-site commute after transit delay.", "/uploads/northwind-lyft-client.jpg", reviewNote: "Approved with supporting schedule note.", currency: "GBP"),
+                            Expense("The Smith", "Meals", 185.00m, "Pending", now.AddDays(-2), "Dinner with procurement contacts after renewal negotiations.", "/uploads/northwind-the-smith.jpg", true, "Expense triggered policy review.", "Pending review due to client entertainment category.", currency: "GBP")
+                        ],
+                        "GBP")
                 ]),
             new TenantSeed(
                 "Blue Harbor Logistics",
@@ -277,16 +366,18 @@ public static class DatabaseSeeder
                         [
                             Expense("FedEx Office", "Shipping", 58.20m, "Approved", now.AddDays(-9), "Printed and shipped customs packets for port onboarding.", "/uploads/blueharbor-fedex.jpg", reviewNote: "Approved as project shipping cost."),
                             Expense("Shell", "Fuel", 147.19m, "Pending", now.AddDays(-3), "Fuel for a three-day route coverage visit across Orange County.", "/uploads/blueharbor-shell.jpg"),
-                            Expense("Holiday Inn Express", "Lodging", 299.99m, "Approved", now.AddDays(-20), "Overnight stay during warehouse systems rollout.", "/uploads/blueharbor-holidayinn.jpg", reviewNote: "Approved against rollout budget.", reviewedBy: "priya.nair@blueharborlogistics.com")
-                        ]),
+                            Expense("Holiday Inn Express", "Lodging", 270.00m, "Approved", now.AddDays(-20), "Overnight stay during warehouse systems rollout.", "/uploads/blueharbor-holidayinn.jpg", reviewNote: "Approved against rollout budget.", reviewedBy: "priya.nair@blueharborlogistics.com", currency: "EUR")
+                        ],
+                        "EUR"),
                     new UserSeed(
                         "sofia.ortega@blueharborlogistics.com",
                         "Member",
                         [
-                            Expense("Zoom", "Software", 159.00m, "Approved", now.AddDays(-13), "Quarterly webinar add-on for recruiting and carrier briefings.", "/uploads/blueharbor-zoom.jpg", reviewNote: "Approved recurring collaboration software."),
+                            Expense("Zoom", "Software", 145.00m, "Approved", now.AddDays(-13), "Quarterly webinar add-on for recruiting and carrier briefings.", "/uploads/blueharbor-zoom.jpg", reviewNote: "Approved recurring collaboration software.", currency: "EUR"),
                             Expense("Chipotle", "Meals", 67.45m, "Pending", now.AddDays(-2), "Lunch during same-day candidate interview loop.", "/uploads/blueharbor-chipotle.jpg"),
                             Expense("Lowe's", "Maintenance", 214.84m, "Approved", now.AddDays(-6), "Safety signage and shelving hardware for dock staging area.", "/uploads/blueharbor-lowes.jpg", reviewNote: "Approved under warehouse safety budget.", reviewedBy: "priya.nair@blueharborlogistics.com")
-                        ])
+                        ],
+                        "EUR")
                 ]),
             new TenantSeed(
                 "CedarStone Design Studio",
@@ -323,10 +414,11 @@ public static class DatabaseSeeder
                         "julian.cross@cedarstonedesign.com",
                         "Member",
                         [
-                            Expense("B&H Photo", "Equipment", 532.45m, "Approved", now.AddDays(-15), "Lighting accessories and backup batteries for studio shoots.", "/uploads/cedarstone-bhphoto.jpg", reviewNote: "Approved for scheduled production shoots.", reviewedBy: "aaron.lee@cedarstonedesign.com"),
-                            Expense("Uber", "Transport", 42.18m, "Approved", now.AddDays(-6), "Late-night ride home after client photo shoot wrap.", "/uploads/cedarstone-uber.jpg", reviewNote: "Approved with late-session note.", reviewedBy: "aaron.lee@cedarstonedesign.com"),
-                            Expense("Google Ads", "Marketing", 311.82m, "Pending", now.AddDays(-2), "Paid search spend promoting the studio portfolio launch.", "/uploads/cedarstone-googleads.jpg")
-                        ])
+                            Expense("B&H Photo", "Equipment", 58500m, "Approved", now.AddDays(-15), "Lighting accessories and backup batteries for studio shoots.", "/uploads/cedarstone-bhphoto.jpg", reviewNote: "Approved for scheduled production shoots.", reviewedBy: "aaron.lee@cedarstonedesign.com", currency: "JPY"),
+                            Expense("Uber", "Transport", 4500m, "Approved", now.AddDays(-6), "Late-night ride home after client photo shoot wrap.", "/uploads/cedarstone-uber.jpg", reviewNote: "Approved with late-session note.", reviewedBy: "aaron.lee@cedarstonedesign.com", currency: "JPY"),
+                            Expense("Google Ads", "Marketing", 34000m, "Pending", now.AddDays(-2), "Paid search spend promoting the studio portfolio launch.", "/uploads/cedarstone-googleads.jpg", currency: "JPY")
+                        ],
+                        "JPY")
                 ]),
             new TenantSeed(
                 "SummitPeak Consulting",
@@ -363,10 +455,11 @@ public static class DatabaseSeeder
                         "sophia.bennett@summitpeakconsulting.com",
                         "Member",
                         [
-                            Expense("Zoom", "Software", 79.00m, "Approved", now.AddDays(-13), "Webinar add-on for control owner training sessions.", "/uploads/summitpeak-zoom.jpg", reviewNote: "Approved recurring training software.", reviewedBy: "victor.hale@summitpeakconsulting.com"),
+                            Expense("Zoom", "Software", 69.00m, "Approved", now.AddDays(-13), "Webinar add-on for control owner training sessions.", "/uploads/summitpeak-zoom.jpg", reviewNote: "Approved recurring training software.", reviewedBy: "victor.hale@summitpeakconsulting.com", currency: "GBP"),
                             Expense("Uber", "Ground Transport", 88.34m, "Approved", now.AddDays(-7), "Airport transfer and client-office round trip.", "/uploads/summitpeak-uber.jpg", reviewNote: "Approved with itinerary attached.", reviewedBy: "victor.hale@summitpeakconsulting.com"),
-                            Expense("Ruth's Chris", "Meals", 314.50m, "Pending", now.AddDays(-2), "Executive dinner after steering committee presentation.", "/uploads/summitpeak-ruthschris.jpg", true, "Alcohol-related expense requires policy review.", "Pending because the receipt includes alcohol and high meal spend.")
-                        ])
+                            Expense("Ruth's Chris", "Meals", 245.00m, "Pending", now.AddDays(-2), "Executive dinner after steering committee presentation.", "/uploads/summitpeak-ruthschris.jpg", true, "Alcohol-related expense requires policy review.", "Pending because the receipt includes alcohol and high meal spend.", currency: "GBP")
+                        ],
+                        "GBP")
                 ])
         ];
     }
@@ -434,7 +527,8 @@ public static class DatabaseSeeder
     private sealed record UserSeed(
         string Email,
         string Role,
-        ExpenseSeed[] Expenses);
+        ExpenseSeed[] Expenses,
+        string PreferredCurrency = "USD");
 
     private sealed record ExpenseSeed(
         string Merchant,

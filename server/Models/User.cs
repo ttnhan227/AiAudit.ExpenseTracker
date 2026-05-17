@@ -13,6 +13,10 @@ public class User
 
     public string Role { get; set; } = default!;
     public bool IsActive { get; set; } = true;
+    public bool ExpenseCardSuspended { get; set; }
+    public DateTime? ExpenseCardSuspendedAt { get; set; }
+    public string? ExpenseCardSuspensionReason { get; set; }
+    public string PreferredCurrency { get; set; } = "USD";
 
     /// <summary>Security: Never serialized in API responses</summary>
     [JsonIgnore]

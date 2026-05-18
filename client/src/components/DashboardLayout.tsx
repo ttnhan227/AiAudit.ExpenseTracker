@@ -14,10 +14,9 @@ import {
   X,
   CheckCircle,
   Activity,
-  ShieldCheck,
   CreditCard,
   Users,
-  ShieldCheck as ShieldIcon
+  ShieldCheck
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -56,13 +55,12 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
           { href: "/analytics", icon: BarChart3, label: "Advanced Analytics" },
         ]
       : []),
-     ...(isOwner
-       ? [
-           { href: "/settings/policy", icon: ShieldCheck, label: "Policy Settings" },
-           { href: "/admin/users", icon: Users, label: "User Management" },
-           { href: "/compliance", icon: ShieldIcon, label: "Compliance Hub" },
-         ]
-       : []),
+    ...(isOwner
+      ? [
+          { href: "/admin/users", icon: Users, label: "User Management" },
+          { href: "/compliance", icon: ShieldCheck, label: "Compliance Hub" },
+        ]
+      : []),
     ...(!isManagerOnly
       ? [
           { href: "/subscription", icon: CreditCard, label: "Subscription" },
